@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Unity 밖에서 Core를 빌드한다. Unity 2021.3과 같은 .NET Standard 2.1 / C# 9 조건으로 컴파일해서
+       Unity에서 못 쓰는 API가 섞이면 여기서 먼저 깨지게 한다. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AssemblyName>KitchenDefense.Core</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Assets/KitchenDefense/Scripts/Core/**/*.cs" />
+  </ItemGroup>
+</Project>

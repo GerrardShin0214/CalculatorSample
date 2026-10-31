@@ -36,7 +36,7 @@ namespace KitchenDefense.EditorTools
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, BundleId);
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARMv7 | AndroidArchitecture.ARM64;
-            PlayerSettings.Android.minSdkVersion = (AndroidSdkVersions)23;
+            PlayerSettings.Android.minSdkVersion = (AndroidSdkVersions)25;
             EnsureMainSceneInBuild();
             AssetDatabase.SaveAssets();
             Debug.Log("[KitchenDefense] 모바일 빌드 설정을 적용했습니다.");

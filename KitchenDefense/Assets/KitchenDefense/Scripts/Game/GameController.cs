@@ -20,6 +20,7 @@ namespace KitchenDefense.Game
         const int MaxStepsPerFrame = 8;
         const int PredictionsPerFrame = 6;
         const string SpeedKey = "kd_speed";
+        const float NightOverDelay = 1.6f;
 
         public GameSession Session { get; private set; }
         public Camera Cam { get; private set; }
@@ -52,6 +53,8 @@ namespace KitchenDefense.Game
         float animTime;
         bool dirty;
         int predictCursor;
+        float nightOverTimer = -1f;
+        float lastBackPress = -10f;
 
         // ───────────── 수명 주기 ─────────────
 
@@ -125,12 +128,16 @@ namespace KitchenDefense.Game
 
         void SetupUI()
         {
-            if (EventSystem.current == null)
+            var eventSystem = EventSystem.current;
+            if (eventSystem == null)
             {
                 var es = new GameObject("EventSystem");
-                es.AddComponent<EventSystem>();
+                eventSystem = es.AddComponent<EventSystem>();
                 es.AddComponent<StandaloneInputModule>();
             }
+            // 고해상도 폰에서는 손가락 떨림만으로 10px을 넘어 스크롤 속 버튼 탭이 드래그로 취소된다.
+            // 안드로이드 기본 터치 슬롭(8dp)에 맞춘다(Screen.dpi가 0일 수 있어 최소 10px).
+            eventSystem.pixelDragThreshold = Mathf.Max(10, Mathf.RoundToInt(Screen.dpi / 160f * 8f));
 
             var canvasGo = new GameObject("UI", typeof(RectTransform));
             canvasGo.layer = UIKit.UILayer;
@@ -228,10 +235,17 @@ namespace KitchenDefense.Game
 
                 if (Session.NightOver)
                 {
-                    Session.EndNight();
-                    SaveNow();
-                    ShowPhase();
-                    return;
+                    // 마지막 처치 연출과 "밤을 지켜냈다!" 배너를 보여 준 뒤 넘어간다.
+                    if (nightOverTimer < 0f) nightOverTimer = NightOverDelay;
+                    if (!Paused) nightOverTimer -= dt;
+                    if (nightOverTimer <= 0f)
+                    {
+                        nightOverTimer = -1f;
+                        Session.EndNight();
+                        SaveNow();
+                        ShowPhase();
+                        return;
+                    }
                 }
             }
 
@@ -424,6 +438,7 @@ namespace KitchenDefense.Game
         {
             cards.HideOverlay();
             Paused = false;
+            nightOverTimer = -1f;
             var phase = Session.Phase;
             bool night = phase == GamePhase.Night;
             Board.SetVisible(night);
@@ -451,6 +466,7 @@ namespace KitchenDefense.Game
             predictions.Clear();
             predictCursor = 0;
             accumulator = 0f;
+            nightOverTimer = -1f;
             NightUI.ResetInteraction();
             RefreshNeeds();
         }
@@ -554,19 +570,50 @@ namespace KitchenDefense.Game
             else cards.HideOverlay();
         }
 
-        public void ResumeFromPause() { SetPaused(false); }
+        public void ResumeFromPause()
+        {
+            // 일시정지 중에 연 '게임 방법' 카드가 남아 있으면 같이 닫는다(카드 뒤에서 웨이브가 돌지 않게).
+            if (InNight) cards.Hide();
+            SetPaused(false);
+        }
 
         public void ReturnFromHelp()
         {
             cards.Hide();
-            if (InNight) cards.ShowPause();
+            if (InNight) SetPaused(true);
             else ShowTitle();
         }
 
+        /// <summary>안드로이드 뒤로 버튼. 밤에는 일시정지, 낮·타이틀에서는 두 번 누르면 타이틀로/종료.</summary>
         void OnBack()
         {
-            if (cards.HasOverlay) ResumeFromPause();
-            else if (InNight) ShowPause();
+            if (cards.HasOverlay)
+            {
+                ResumeFromPause();
+                return;
+            }
+            if (cards.HelpOpen)
+            {
+                cards.BackFromHelp();
+                return;
+            }
+            if (InNight)
+            {
+                ShowPause();
+                return;
+            }
+            bool second = Time.unscaledTime - lastBackPress < 2f;
+            lastBackPress = Time.unscaledTime;
+            if (Session == null)
+            {
+                if (second) Application.Quit();
+                else Toast("뒤로 버튼을 한 번 더 누르면 종료합니다");
+            }
+            else
+            {
+                if (second) GoToTitle();
+                else Toast("뒤로 버튼을 한 번 더 누르면 저장하고 타이틀로 갑니다");
+            }
         }
 
         public void ToggleSpeed()

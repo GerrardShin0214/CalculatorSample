@@ -15,10 +15,11 @@ namespace KitchenDefense.Game
         const string BestScoreKey = "kd_best_score";
 
         public static string FilePath { get { return Path.Combine(Application.persistentDataPath, FileName); } }
+        static string TempPath { get { return FilePath + ".tmp"; } }
 
         public static bool HasSave()
         {
-            try { return File.Exists(FilePath); }
+            try { return File.Exists(FilePath) || File.Exists(TempPath); }
             catch (Exception) { return false; }
         }
 
@@ -27,11 +28,11 @@ namespace KitchenDefense.Game
             if (run == null) return;
             try
             {
+                // 임시 파일에 다 쓴 다음 바꿔 끼운다. 그 사이에 앱이 죽어도 Load가 임시 파일로 살려 낸다.
                 string json = JsonUtility.ToJson(run);
-                string tmp = FilePath + ".tmp";
-                File.WriteAllText(tmp, json);
+                File.WriteAllText(TempPath, json);
                 if (File.Exists(FilePath)) File.Delete(FilePath);
-                File.Move(tmp, FilePath);
+                File.Move(TempPath, FilePath);
             }
             catch (Exception e)
             {
@@ -41,16 +42,36 @@ namespace KitchenDefense.Game
 
         public static RunState Load()
         {
+            // 저장 도중 앱이 죽어 임시 파일이 남았다면 그쪽이 더 최신이다(다 써진 경우에만 읽힌다).
+            var run = TryRead(TempPath);
+            if (run != null)
+            {
+                try
+                {
+                    if (File.Exists(FilePath)) File.Delete(FilePath);
+                    File.Move(TempPath, FilePath);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning("[KitchenDefense] 임시 세이브 복구 실패: " + e.Message);
+                }
+                return run;
+            }
+            return TryRead(FilePath);
+        }
+
+        static RunState TryRead(string path)
+        {
             try
             {
-                if (!File.Exists(FilePath)) return null;
-                var run = JsonUtility.FromJson<RunState>(File.ReadAllText(FilePath));
+                if (!File.Exists(path)) return null;
+                var run = JsonUtility.FromJson<RunState>(File.ReadAllText(path));
                 if (run == null || run.version != GameSession.SaveVersion) return null;
                 return run;
             }
             catch (Exception e)
             {
-                Debug.LogWarning("[KitchenDefense] 불러오기 실패: " + e.Message);
+                Debug.LogWarning("[KitchenDefense] 불러오기 실패(" + Path.GetFileName(path) + "): " + e.Message);
                 return null;
             }
         }
@@ -60,6 +81,7 @@ namespace KitchenDefense.Game
             try
             {
                 if (File.Exists(FilePath)) File.Delete(FilePath);
+                if (File.Exists(TempPath)) File.Delete(TempPath);
             }
             catch (Exception e)
             {

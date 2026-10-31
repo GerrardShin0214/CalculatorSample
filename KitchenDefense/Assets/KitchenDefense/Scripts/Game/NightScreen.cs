@@ -30,7 +30,7 @@ namespace KitchenDefense.Game
         Button removeButton;
         readonly Button[] toolButtons = new Button[4];
         readonly Text[] toolCosts = new Text[4];
-        readonly Image[] toolFrames = new Image[4];
+        readonly Outline[] toolFrames = new Outline[4];
         Button speedButton;
         Button layoutButton;
         Button waveButton;
@@ -134,10 +134,11 @@ namespace KitchenDefense.Game
                 var def = GameData.Tool(type);
                 var btn = UIKit.Button(tools, "Tool " + type, null, 30, Theme.HudPanel, Theme.HudText, () => OnToolButton(type));
                 var bt = btn.transform;
-                var frame = UIKit.Image(bt, "Frame", Theme.Selection, SpriteFactory.UiRounded, 1.3f);
-                UIKit.Stretch(frame.rectTransform, -6f, -6f, -6f, -6f);
-                frame.raycastTarget = false;
-                frame.gameObject.SetActive(false);
+                // 고른 기구는 노란 테두리(Outline)로 표시한다. 글자를 가리지 않는다.
+                var frame = btn.gameObject.AddComponent<Outline>();
+                frame.effectColor = Theme.Selection;
+                frame.effectDistance = new Vector2(6f, -6f);
+                frame.enabled = false;
                 toolFrames[i] = frame;
 
                 var iconImg = UIKit.Image(bt, "Icon", Theme.ToolColor(type), type == ToolType.Cauldron ? SpriteFactory.Circle : SpriteFactory.UiRounded, 2.5f);
@@ -180,7 +181,11 @@ namespace KitchenDefense.Game
         public void Show(bool visible)
         {
             if (Root.gameObject.activeSelf != visible) Root.gameObject.SetActive(visible);
-            if (!visible) ResetInteraction();
+            if (visible) return;
+            ResetInteraction();
+            // 지난밤 배너가 다음 밤 첫 화면에 남지 않게 지운다.
+            bannerTime = 0f;
+            banner.text = "";
         }
 
         public void ResetInteraction()
@@ -487,7 +492,7 @@ namespace KitchenDefense.Game
                 var costColor = affordable ? Theme.Fire : Theme.Bad;
                 if (toolCosts[i].color != costColor) toolCosts[i].color = costColor;
                 bool framed = placing && placingType == type;
-                if (toolFrames[i].gameObject.activeSelf != framed) toolFrames[i].gameObject.SetActive(framed);
+                if (toolFrames[i].enabled != framed) toolFrames[i].enabled = framed;
             }
 
             var tower = SelectedTower;

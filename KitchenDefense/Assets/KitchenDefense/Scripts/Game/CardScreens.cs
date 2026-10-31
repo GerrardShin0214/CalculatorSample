@@ -30,6 +30,30 @@ namespace KitchenDefense.Game
         readonly List<DishRow> dishRows = new List<DishRow>();
         Text menuHeader;
 
+        // 상점 카드 부분 갱신용(구매해도 목록이 맨 위로 튀지 않게 다시 만들지 않는다)
+        sealed class ShopRow
+        {
+            public ShopOffer offer;
+            public Text info;
+            public Button button;
+        }
+
+        readonly List<ShopRow> shopRows = new List<ShopRow>();
+        Text repairInfo;
+        Button repairButton;
+        Text shopHint;
+
+        UnityAction helpBack;
+
+        /// <summary>'게임 방법' 카드가 떠 있는가(뒤로 버튼이 여기서 돌아가게).</summary>
+        public bool HelpOpen { get { return helpBack != null; } }
+
+        public void BackFromHelp()
+        {
+            var back = helpBack;
+            if (back != null) back();
+        }
+
         public CardScreens(GameController ctl, RectTransform root, RectTransform overlayRoot, Image backdrop)
         {
             this.ctl = ctl;
@@ -46,6 +70,11 @@ namespace KitchenDefense.Game
             current = null;
             dishRows.Clear();
             menuHeader = null;
+            shopRows.Clear();
+            repairInfo = null;
+            repairButton = null;
+            shopHint = null;
+            helpBack = null;
             if (backdrop.gameObject.activeSelf) backdrop.gameObject.SetActive(false);
         }
 
@@ -414,37 +443,56 @@ namespace KitchenDefense.Game
 
             var rb = c.Box(Theme.Card);
             c.Heading(rb, "가게 수리", Theme.Ink);
-            c.BodyText(rb, "내구도 +" + Balance.RepairAmount + "  (지금 " + run.durability + "/" + Balance.MaxDurability + ")");
-            var repair = c.RowButton(rb, run.durability >= Balance.MaxDurability ? "수리할 곳 없음" : "수리 " + Balance.RepairPrice + "G", Theme.Good, () =>
+            repairInfo = c.BodyText(rb, "");
+            repairButton = c.RowButton(rb, "", Theme.Good, () =>
             {
                 if (ctl.Session.Repair()) ctl.MarkDirty();
-                ShowShop();
+                RefreshShop();
             });
-            repair.interactable = DayLogic.CanRepair(run);
 
             var ob = c.Box(Theme.Card, 14f);
             c.Heading(ob, "오늘의 상품 (매일 바뀜)", Theme.Ink);
             foreach (var offer in run.dayState.offers)
             {
-                var item = GameData.ShopItem(offer.itemId);
-                if (item == null) continue;
-                int lv = DayLogic.Level(run, item.effect);
-                c.BodyText(ob, Theme.Colorize(item.name, Theme.Accent) + "  " + item.description + "  (Lv " + lv + "/" + item.maxLevel + ")");
+                if (GameData.ShopItem(offer.itemId) == null) continue;
+                var row = new ShopRow { offer = offer };
+                row.info = c.BodyText(ob, "");
                 var o = offer;
-                var buy = c.RowButton(ob, o.sold ? "구매 완료" : "구매 " + o.price + "G", Theme.Accent, () =>
+                row.button = c.RowButton(ob, "", Theme.Accent, () =>
                 {
                     if (ctl.Session.Buy(o)) ctl.MarkDirty();
-                    ShowShop();
+                    RefreshShop();
                 });
-                buy.interactable = DayLogic.CanBuy(run, o);
+                shopRows.Add(row);
             }
 
-            int over = DayLogic.OverflowCount(run);
             var hb = c.Box(Theme.Card);
-            c.BodyText(hb, "창고 " + run.storage.Count + "/" + run.StorageCapacity
-                + (over > 0 ? Theme.Colorize("  마감 때 넘치는 " + over + "개는 싼 것부터 백반으로 팝니다.", Theme.Bad) : "  넘치는 재료 없음"));
+            shopHint = c.BodyText(hb, "");
 
             c.FooterButton("마감하기", Theme.Accent, ctl.CloseShop);
+            RefreshShop();
+        }
+
+        void RefreshShop()
+        {
+            if (current == null || repairButton == null) return;
+            var run = Run;
+            UIKit.SetText(current.Subtitle, StatusLine());
+            UIKit.SetText(repairInfo, "내구도 +" + Balance.RepairAmount + "  (지금 " + run.durability + "/" + Balance.MaxDurability + ")");
+            UIKit.SetLabel(repairButton, run.durability >= Balance.MaxDurability ? "수리할 곳 없음" : "수리 " + Balance.RepairPrice + "G");
+            repairButton.interactable = DayLogic.CanRepair(run);
+            foreach (var row in shopRows)
+            {
+                var item = GameData.ShopItem(row.offer.itemId);
+                int lv = DayLogic.Level(run, item.effect);
+                UIKit.SetText(row.info, Theme.Colorize(item.name, Theme.Accent) + "  " + item.description + "  (Lv " + lv + "/" + item.maxLevel + ")");
+                string label = row.offer.sold ? "구매 완료" : (lv >= item.maxLevel ? "최대 단계" : "구매 " + row.offer.price + "G");
+                UIKit.SetLabel(row.button, label);
+                row.button.interactable = DayLogic.CanBuy(run, row.offer);
+            }
+            int over = DayLogic.OverflowCount(run);
+            UIKit.SetText(shopHint, "창고 " + run.storage.Count + "/" + run.StorageCapacity
+                + (over > 0 ? Theme.Colorize("  마감 때 넘치는 " + over + "개는 싼 것부터 백반으로 팝니다.", Theme.Bad) : "  넘치는 재료 없음"));
         }
 
         // ───────────── 낮 4: 마감 ─────────────
@@ -553,6 +601,7 @@ namespace KitchenDefense.Game
             c.BodyText(lb, "- 평판이 오르면 손님과 판매가가 늘지만, 냄새가 퍼져 몬스터도 강해집니다.");
 
             c.FooterButton("돌아가기", Theme.Accent, back);
+            helpBack = back;
         }
 
         // ───────────── 일시정지 ─────────────

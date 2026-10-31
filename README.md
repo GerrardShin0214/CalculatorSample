@@ -10,8 +10,8 @@
 
 ## 바로 실행하기
 
-1. **Unity 2021.3.8f1 (LTS)** 로 연다. (`ProjectSettings/ProjectVersion.txt`, CalculatorSample과 같은 버전)
-   - Unity Hub → Add → 이 폴더 선택. 더 새 버전(2022.3, Unity 6)으로 열어도 자동 업그레이드된다.
+1. **Unity 6000.3.5f2** 로 연다. (`ProjectSettings/ProjectVersion.txt`)
+   - Unity Hub → Add → 이 폴더 선택. 더 새 버전으로 열어도 자동 업그레이드된다.
 2. `Assets/KitchenDefense/Scenes/Main.unity` 를 연다. (메뉴 **Kitchen Defense → 메인 씬 열기**)
 3. Game 뷰 해상도를 세로로 맞춘다. 예: `1080x1920 Portrait` 또는 `1080x2400`.
 4. **Play**. 씬이 비어 있어도 `GameBootstrap`이 카메라·UI·보드를 전부 코드로 만든다.
@@ -25,7 +25,7 @@
 2. File → Build Settings → **Android** → Switch Platform.
 3. 휴대폰 개발자 옵션의 USB 디버깅을 켜고 연결 → **Build And Run**.
 
-세로 고정, 패키지 이름 `com.gerrardshin.kitchendefense`, IL2CPP + ARMv7/ARM64, 최소 API 23이
+세로 고정, 패키지 이름 `com.gerrardshin.kitchendefense`, IL2CPP + ARMv7/ARM64, 최소 API 25가
 `ProjectSettings`에 이미 들어 있다. 설정이 바뀌었으면 메뉴 **Kitchen Defense → 모바일 빌드 설정 적용**으로 되돌린다.
 
 ### iOS
@@ -75,9 +75,8 @@ Mac에서 **iOS Build Support** 모듈을 추가하고 iOS로 Switch Platform �
 
 ## 픽셀 이펙트 (pixelfx)
 
-[pixelfx](https://github.com/patch-gg/pixelfx)(MIT)의 픽셀 아트 효과를 붙일 수 있게 해 두었다.
-시트(PNG + JSON)를 `Assets/KitchenDefense/Resources/PixelFx/`에 넣으면 게임이 자동으로 쓰고,
-없으면 지금처럼 도형 연출로 대신한다. **시트 파일은 아직 이 저장소에 들어 있지 않다.**
+[pixelfx](https://github.com/patch-gg/pixelfx)(MIT)의 픽셀 아트 효과 8개가 `Assets/KitchenDefense/Resources/PixelFx/`에 들어 있다.
+시트(PNG + JSON)가 있으면 게임이 자동으로 쓰고, 없으면 도형 연출로 대신한다.
 
 | 게임 연출 | pixelfx 효과 |
 |---|---|
@@ -90,7 +89,7 @@ Mac에서 **iOS Build Support** 모듈을 추가하고 iOS로 Switch Platform �
 | 화상 중인 몬스터 (반복) | `status/burning` |
 | 감속 중인 몬스터 (반복) | `status/frozen` |
 
-넣는 법 (Node.js 18 이상):
+다시 뽑는 법 (Node.js 18 이상):
 
 ```
 git clone https://github.com/patch-gg/pixelfx ../pixelfx
@@ -156,4 +155,4 @@ Tools/                           Unity 없이 Core를 빌드·테스트하는 do
 ## 크레딧
 
 - 글꼴: **주아체(Jua)** © 2018 The BM JUA Project Authors (배달의민족), [SIL Open Font License 1.1](Assets/KitchenDefense/Resources/Fonts/Jua-OFL.txt)
-- 픽셀 이펙트(넣었을 때): **pixelfx** © 2026 Patch, Hugo Duprez, MIT License (일부는 Sprite Fusion, Hollow Crown의 MIT 코드를 바탕으로 함)
+- 픽셀 이펙트: **pixelfx** © 2026 Patch, Hugo Duprez, MIT License (일부는 Sprite Fusion, Hollow Crown의 MIT 코드를 바탕으로 함)

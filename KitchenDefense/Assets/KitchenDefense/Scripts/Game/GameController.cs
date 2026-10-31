@@ -289,14 +289,18 @@ namespace KitchenDefense.Game
                         OnAttackFx(e, pos);
                         break;
                     case SimEventType.Killed:
-                        Fx.Pop(pos, 0.75f, Theme.ToolColor(e.toolType), 0.3f);
+                        OnKillFx(e, pos);
                         if (e.ingredientId != null)
                         {
                             var ing = GameData.Ingredient(e.ingredientId);
                             bool wanted = DayLogic.IsStillNeeded(needs, e.ingredientId);
                             Color col = wanted ? Theme.Hex(0x9CFF8A) : (ing.scraps ? Theme.Muted : Theme.HudText);
                             Fx.Text(pos + new Vector3(0f, 0.38f, 0f), "+" + ing.name + (wanted ? " (예약!)" : ""), col, wanted ? 0.32f : 0.26f);
-                            if (wanted) needsTimer = 0f;
+                            if (wanted)
+                            {
+                                needsTimer = 0f;
+                                Fx.TryPlay(PixelFxLibrary.CollectBurst, pos + new Vector3(0f, 0.15f, 0f), 0.5f);
+                            }
                         }
                         break;
                     case SimEventType.Split:
@@ -304,6 +308,7 @@ namespace KitchenDefense.Game
                         break;
                     case SimEventType.Leaked:
                         Board.FlashStorage();
+                        Fx.TryPlay(PixelFxLibrary.HeartLost, pos + new Vector3(0f, 0.25f, 0f), 0.7f);
                         Fx.Text(pos + new Vector3(0f, 0.45f, 0f), Texts.Heart + " -1", Theme.Heart, 0.36f);
                         if (e.eatenId != null)
                             Fx.Text(pos + new Vector3(0f, 0.9f, 0f), Texts.IngredientName(e.eatenId) + " 먹힘!", Theme.Bad, 0.28f);
@@ -331,7 +336,7 @@ namespace KitchenDefense.Game
             switch (e.toolType)
             {
                 case ToolType.Knife:
-                    Fx.Slash(pos, Color.white);
+                    if (!Fx.TryPlay(PixelFxLibrary.HitSpark, pos, 0.42f, Random.value < 0.5f)) Fx.Slash(pos, Color.white);
                     break;
                 case ToolType.Grill:
                     Fx.Ring(pos, GameData.Tool(ToolType.Grill).range, Theme.Hex(0xFF7043, 0.7f), 0.35f);
@@ -340,10 +345,25 @@ namespace KitchenDefense.Game
                     Fx.Ring(pos, GameData.Tool(ToolType.Freezer).range, Theme.Hex(0x81D4FA, 0.75f), 0.4f);
                     break;
                 case ToolType.Cauldron:
-                    Fx.Pop(pos, 1f, Theme.Hex(0xC5E1A5, 0.9f), 0.35f);
+                    // 삶기 막타 연출(물보라)은 Killed 이벤트에서 나온다.
+                    if (PixelFxLibrary.Get(PixelFxLibrary.Splash) == null) Fx.Pop(pos, 1f, Theme.Hex(0xC5E1A5, 0.9f), 0.35f);
                     Fx.Text(pos + new Vector3(0f, 0.3f, 0f), "보글!", Theme.Hex(0xC5E1A5), 0.3f);
                     break;
             }
+        }
+
+        /// <summary>막타 연출: 냉동=눈꽃, 삶기=물보라, 그 외=펑(pixelfx). 시트가 없으면 기구 색 원.</summary>
+        void OnKillFx(SimEvent e, Vector3 pos)
+        {
+            string clip;
+            float scale;
+            switch (e.method)
+            {
+                case CookMethod.Freeze: clip = PixelFxLibrary.SnowflakeBurst; scale = 0.5f; break;
+                case CookMethod.Boil: clip = PixelFxLibrary.Splash; scale = 0.45f; break;
+                default: clip = PixelFxLibrary.Poof; scale = 0.5f; break;
+            }
+            if (!Fx.TryPlay(clip, pos, scale)) Fx.Pop(pos, 0.75f, Theme.ToolColor(e.toolType), 0.3f);
         }
 
         void RefreshNeeds()

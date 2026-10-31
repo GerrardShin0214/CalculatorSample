@@ -353,6 +353,7 @@ namespace KitchenDefense.Game
         readonly SpriteRenderer[] extras = new SpriteRenderer[3];
         readonly SpriteRenderer eyeL, eyeR, pupilL, pupilR;
         readonly SpriteRenderer burn;
+        readonly SpriteRenderer status;
         readonly SpriteRenderer hpBack, hpFill, hpTick;
         readonly SpriteRenderer icon, iconRing;
         readonly TextMesh iconText;
@@ -380,6 +381,9 @@ namespace KitchenDefense.Game
             pupilL = BoardView.Sprite("PupilL", bodyRoot, SpriteFactory.Circle, Theme.Hex(0x1B1411), 5);
             pupilR = BoardView.Sprite("PupilR", bodyRoot, SpriteFactory.Circle, Theme.Hex(0x1B1411), 5);
             burn = BoardView.Sprite("Burn", bodyRoot, SpriteFactory.Circle, Theme.Hex(0xFF7043, 0.85f), 6);
+            // pixelfx 상태 효과(화상/빙결) 겹쳐 그리기
+            status = BoardView.Sprite("StatusFx", Go.transform, null, Color.white, 7);
+            status.gameObject.SetActive(false);
 
             hpBack = BoardView.Sprite("HpBack", Go.transform, SpriteFactory.Square, new Color(0f, 0f, 0f, 0.7f), 10);
             hpFill = BoardView.Sprite("HpFill", Go.transform, SpriteFactory.Square, Theme.Good, 11);
@@ -478,7 +482,21 @@ namespace KitchenDefense.Game
             if (m.slowTimer > 0f) c = Color.Lerp(c, Theme.Hex(0xB3E5FC), 0.5f);
             if (charging) c = Color.Lerp(c, Theme.Hex(0xFF5252), 0.25f + 0.15f * Mathf.Sin(time * 20f));
             body.color = c;
-            bool burning = m.burnTimer > 0f;
+
+            // 화상(그릴)·감속(냉동고)은 pixelfx 시트가 있으면 몸 위에 불꽃/서리 애니메이션으로, 없으면 작은 불씨 점으로.
+            PixelFxClip overlay = null;
+            if (m.burnTimer > 0f) overlay = PixelFxLibrary.Get(PixelFxLibrary.Burning);
+            else if (m.slowTimer > 0f) overlay = PixelFxLibrary.Get(PixelFxLibrary.Frozen);
+            bool showOverlay = overlay != null;
+            if (status.gameObject.activeSelf != showOverlay) status.gameObject.SetActive(showOverlay);
+            if (showOverlay)
+            {
+                status.sprite = overlay.FrameAt(time + m.id * 0.37f);
+                float os = radius / 0.33f * 0.7f;
+                status.transform.localScale = new Vector3(os, os, 1f);
+                status.transform.localPosition = new Vector3(0f, -radius * 0.9f, 0f);
+            }
+            bool burning = m.burnTimer > 0f && !showOverlay;
             if (burn.gameObject.activeSelf != burning) burn.gameObject.SetActive(burning);
             if (burning) burn.transform.localScale = Vector3.one * radius * 2f * (0.24f + 0.06f * Mathf.Sin(time * 25f));
 

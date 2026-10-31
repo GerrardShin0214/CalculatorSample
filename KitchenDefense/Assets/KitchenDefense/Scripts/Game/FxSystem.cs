@@ -3,7 +3,10 @@ using UnityEngine;
 
 namespace KitchenDefense.Game
 {
-    /// <summary>짧은 연출(칼질, 불꽃 고리, 냉기, 보글보글, 떠오르는 글자). 오브젝트는 풀링한다.</summary>
+    /// <summary>
+    /// 짧은 연출(칼질, 불꽃 고리, 냉기, 보글보글, 떠오르는 글자). 오브젝트는 풀링한다.
+    /// pixelfx 시트가 있으면 TryPlay로 픽셀 아트 애니메이션을 틀고, 없으면 도형 연출로 대신한다.
+    /// </summary>
     public sealed class FxSystem
     {
         sealed class Item
@@ -18,6 +21,7 @@ namespace KitchenDefense.Game
             public float scaleTo;
             public Color color;
             public bool text;
+            public PixelFxClip clip;
         }
 
         readonly Transform root;
@@ -46,9 +50,25 @@ namespace KitchenDefense.Game
             it.go.SetActive(true);
             it.t = 0f;
             it.text = false;
+            it.clip = null;
             it.velocity = Vector3.zero;
             active.Add(it);
             return it;
+        }
+
+        /// <summary>pixelfx 시트 효과를 한 번 재생한다. 시트가 없으면 false(호출한 쪽이 도형 연출로 대신).</summary>
+        public bool TryPlay(string clipName, Vector3 pos, float scale, bool flipX = false)
+        {
+            var clip = PixelFxLibrary.Get(clipName);
+            if (clip == null) return false;
+            var it = TakeSprite(clip.frames[0], 38);
+            it.clip = clip;
+            it.color = Color.white;
+            it.sr.color = Color.white;
+            it.life = clip.Duration;
+            it.go.transform.localPosition = pos;
+            it.go.transform.localScale = new Vector3(flipX ? -scale : scale, scale, 1f);
+            return true;
         }
 
         /// <summary>그릴·냉동고 공격: 사거리까지 퍼지는 고리.</summary>
@@ -116,7 +136,13 @@ namespace KitchenDefense.Game
                 var it = active[i];
                 it.t += dt;
                 float k = it.life > 0f ? Mathf.Clamp01(it.t / it.life) : 1f;
-                if (it.text)
+                if (it.clip != null)
+                {
+                    var frame = it.t < it.life ? it.clip.FrameAt(it.t) : null;
+                    if (frame != null) it.sr.sprite = frame;
+                    else k = 1f;
+                }
+                else if (it.text)
                 {
                     it.go.transform.localPosition += it.velocity * dt;
                     var c = it.color;

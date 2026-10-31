@@ -73,6 +73,36 @@ Mac에서 **iOS Build Support** 모듈을 추가하고 iOS로 Switch Platform �
 기획서에 수치가 없던 부분(몬스터 체력, 기구 피해, 화력 등)은 프로토타입용 초기값이다.
 전부 `GameData.cs`의 `Balance`와 데이터 표에 모여 있어 숫자만 바꿔 다시 테스트할 수 있다.
 
+## 픽셀 이펙트 (pixelfx)
+
+[pixelfx](https://github.com/patch-gg/pixelfx)(MIT)의 픽셀 아트 효과를 붙일 수 있게 해 두었다.
+시트(PNG + JSON)를 `Assets/KitchenDefense/Resources/PixelFx/`에 넣으면 게임이 자동으로 쓰고,
+없으면 지금처럼 도형 연출로 대신한다. **시트 파일은 아직 이 저장소에 들어 있지 않다.**
+
+| 게임 연출 | pixelfx 효과 |
+|---|---|
+| 식칼 타격 | `impacts/hit-spark` |
+| 몬스터 처치 | `spawn/poof` |
+| 냉동 막타 | `ice/snowflake-burst` |
+| 가마솥 삶기 | `water/splash` |
+| 예약 재료 획득 | `pickups/collect-burst` |
+| 창고가 털림 (내구도 -1) | `ui/heart-lost` |
+| 화상 중인 몬스터 (반복) | `status/burning` |
+| 감속 중인 몬스터 (반복) | `status/frozen` |
+
+넣는 법 (Node.js 18 이상):
+
+```
+git clone https://github.com/patch-gg/pixelfx ../pixelfx
+node Tools/pixelfx/import-pixelfx.mjs ../pixelfx
+```
+
+스크립트가 pixelfx의 `tools/render.mjs --sheet`로 위 8개를 뽑아 폴더에 복사하고, MIT 라이선스와 NOTICE를
+`pixelfx-LICENSE.txt`로 같이 넣는다(게임과 함께 배포됨). Unity로 돌아가면 `Editor/PixelFxImport.cs`가
+점 필터·무압축으로 임포트한다. 새로 생긴 `.meta` 파일도 함께 커밋할 것.
+다른 효과로 바꾸려면 스크립트의 `EFFECTS`와 `PixelFxLibrary.cs`의 이름을 같이 바꾸면 된다.
+pixelfx의 `gallery/fonts` 글꼴은 MIT가 아니므로 쓰지 않는다.
+
 ## 코드 구조
 
 ```
@@ -94,10 +124,12 @@ Assets/KitchenDefense/
     CardScreens.cs / Card.cs     타이틀·낮 카드·결과·일시정지·게임 방법
     UIKit.cs, SpriteFactory.cs   코드 UI 도우미, 절차적 스프라이트
     SaveSystem.cs                세이브(JSON)·최고 점수
+    PixelFxLibrary.cs            pixelfx 스프라이트 시트 읽기(없으면 도형 연출)
   Editor/KitchenDefenseMenu.cs   상단 메뉴 "Kitchen Defense"
+  Editor/PixelFxImport.cs        pixelfx 시트 임포트 설정(점 필터, 무압축)
   Resources/Fonts/               주아체(배달의민족, SIL OFL 1.1)
   Tests/EditMode/                NUnit 테스트(Unity Test Runner와 dotnet 공용)
-Tools/                           Unity 없이 Core를 빌드·테스트하는 dotnet 프로젝트
+Tools/                           Unity 없이 Core를 빌드·테스트하는 dotnet 프로젝트, pixelfx 가져오기 스크립트
 ```
 
 ## 테스트
@@ -124,3 +156,4 @@ Tools/                           Unity 없이 Core를 빌드·테스트하는 do
 ## 크레딧
 
 - 글꼴: **주아체(Jua)** © 2018 The BM JUA Project Authors (배달의민족), [SIL Open Font License 1.1](Assets/KitchenDefense/Resources/Fonts/Jua-OFL.txt)
+- 픽셀 이펙트(넣었을 때): **pixelfx** © 2026 Patch, Hugo Duprez, MIT License (일부는 Sprite Fusion, Hollow Crown의 MIT 코드를 바탕으로 함)

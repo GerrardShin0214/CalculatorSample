@@ -228,6 +228,8 @@ namespace KitchenDefense.Core
         public SeasonStats stats = new SeasonStats();
         /// <summary>지난밤 배치. 준비 시간에 '어제 배치'로 한 번에 되살린다.</summary>
         public List<LayoutEntry> lastLayout = new List<LayoutEntry>();
+        /// <summary>이야기를 어디까지 봤는지(밤 번호). 이어하기 때 같은 장면을 다시 띄우지 않는다.</summary>
+        public int storyNight = -1;
 
         public int StorageCapacity { get { return Balance.BaseStorage + Balance.StoragePerUpgrade * upgrades.storage; } }
         public int MenuSlots { get { return Balance.BaseMenuSlots + upgrades.menuSlot; } }

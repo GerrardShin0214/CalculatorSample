@@ -45,6 +45,26 @@ namespace KitchenDefense.Game
 
         UnityAction helpBack;
 
+        // 이야기 장면(대사 한 줄씩, 탭해서 넘김)
+        GameObject storyGo;
+        StoryBeat storyBeat;
+        int storyIndex;
+        bool storyOnGoal;
+        UnityAction storyDone;
+        string storyDoneLabel;
+        RectTransform portraitRoot;
+        Image portrait;
+        Text portraitGlyph;
+        Text storySpeaker;
+        Text storyText;
+        Button storyNext;
+        string typeFull = "";
+        float typeTime;
+        bool typing;
+        const float TypeSpeed = 40f;
+
+        public bool StoryOpen { get { return storyGo != null; } }
+
         /// <summary>'게임 방법' 카드가 떠 있는가(뒤로 버튼이 여기서 돌아가게).</summary>
         public bool HelpOpen { get { return helpBack != null; } }
 
@@ -75,6 +95,12 @@ namespace KitchenDefense.Game
             repairButton = null;
             shopHint = null;
             helpBack = null;
+            if (storyGo != null) Object.Destroy(storyGo);
+            storyGo = null;
+            storyBeat = null;
+            storyDone = null;
+            typing = false;
+            backdrop.color = Theme.Paper;
             if (backdrop.gameObject.activeSelf) backdrop.gameObject.SetActive(false);
         }
 
@@ -97,9 +123,187 @@ namespace KitchenDefense.Game
         string StatusLine()
         {
             var r = Run;
-            return Theme.Colorize(Texts.Heart + " " + r.durability + "/" + Balance.MaxDurability, Theme.Bad) + "    "
+            return Theme.Colorize(Texts.Heart + " 위생 " + r.durability + "/" + Balance.MaxDurability, Theme.Bad) + "    "
                 + Theme.Colorize("골드 " + r.gold + "G", Theme.Gold) + "    "
                 + Theme.Colorize(Texts.Star + " 평판 " + r.reputation, Theme.Hex(0xC79100));
+        }
+
+        // ───────────── 이야기 장면 ─────────────
+
+        /// <summary>
+        /// 스테이지(밤) 사이에 보여 주는 이야기. 대사를 한 줄씩 타자 치듯 보여 주고, 아무 데나 탭하면 넘어간다.
+        /// 마지막엔 "오늘의 목표"를 보여 주고 doneLabel 버튼으로 onDone을 부른다.
+        /// </summary>
+        public void ShowStory(StoryBeat beat, string chapter, string countdown, string doneLabel, UnityAction onDone)
+        {
+            Hide();
+            if (beat == null || beat.lines == null || beat.lines.Length == 0)
+            {
+                if (onDone != null) onDone();
+                return;
+            }
+            storyBeat = beat;
+            storyIndex = 0;
+            storyOnGoal = false;
+            storyDone = onDone;
+            storyDoneLabel = doneLabel;
+            backdrop.color = Theme.StoryNight;
+            backdrop.gameObject.SetActive(true);
+
+            var rootRt = UIKit.Node("Story", root);
+            UIKit.Stretch(rootRt);
+            storyGo = rootRt.gameObject;
+
+            // 화면 아무 데나 탭 = 다음
+            var tap = UIKit.Image(rootRt, "Tap", new Color(0f, 0f, 0f, 0f));
+            UIKit.Stretch(tap.rectTransform);
+            var tapButton = tap.gameObject.AddComponent<Button>();
+            tapButton.transition = Selectable.Transition.None;
+            var nav = new Navigation();
+            nav.mode = Navigation.Mode.None;
+            tapButton.navigation = nav;
+            tapButton.onClick.AddListener(AdvanceStory);
+
+            var chapterText = UIKit.FitLabel(rootRt, "Chapter", chapter, 36, Theme.HudSoft, TextAnchor.MiddleLeft);
+            UIKit.Top(chapterText.rectTransform, 50f, 40f, 48f, 280f);
+            var titleText = UIKit.FitLabel(rootRt, "Title", beat.title, 76, Theme.StoryText, TextAnchor.MiddleLeft);
+            UIKit.Top(titleText.rectTransform, 104f, 92f, 48f, 48f);
+            var countdownText = UIKit.FitLabel(rootRt, "Countdown", countdown, 34, Theme.Star, TextAnchor.MiddleLeft);
+            UIKit.Top(countdownText.rectTransform, 50f, 200f, 48f, 48f);
+
+            var skip = UIKit.Button(rootRt, "Skip", "건너뛰기", 34, Theme.StoryPanel, Theme.HudSoft, SkipStory);
+            var srt = (RectTransform)skip.transform;
+            srt.anchorMin = new Vector2(1f, 1f);
+            srt.anchorMax = new Vector2(1f, 1f);
+            srt.pivot = new Vector2(1f, 1f);
+            srt.sizeDelta = new Vector2(220f, 80f);
+            srt.anchoredPosition = new Vector2(-36f, -36f);
+
+            // 말하는 식구의 얼굴(동그란 몸 + 눈 + 한 글자)
+            portraitRoot = UIKit.Node("Portrait", rootRt);
+            portraitRoot.anchorMin = new Vector2(0.5f, 0.6f);
+            portraitRoot.anchorMax = new Vector2(0.5f, 0.6f);
+            portraitRoot.pivot = new Vector2(0.5f, 0.5f);
+            portraitRoot.sizeDelta = new Vector2(340f, 340f);
+            portrait = UIKit.Image(portraitRoot, "Face", Color.white, SpriteFactory.Circle);
+            UIKit.Stretch(portrait.rectTransform);
+            portrait.raycastTarget = false;
+            for (int i = 0; i < 2; i++)
+            {
+                float x = i == 0 ? -70f : 70f;
+                var eye = UIKit.Image(portraitRoot, "Eye", Color.white, SpriteFactory.Circle);
+                eye.raycastTarget = false;
+                var ert = eye.rectTransform;
+                ert.anchorMin = ert.anchorMax = new Vector2(0.5f, 0.5f);
+                ert.sizeDelta = new Vector2(82f, 82f);
+                ert.anchoredPosition = new Vector2(x, 50f);
+                var pupil = UIKit.Image(portraitRoot, "Pupil", Theme.Hex(0x1B1411), SpriteFactory.Circle);
+                pupil.raycastTarget = false;
+                var prt = pupil.rectTransform;
+                prt.anchorMin = prt.anchorMax = new Vector2(0.5f, 0.5f);
+                prt.sizeDelta = new Vector2(38f, 38f);
+                prt.anchoredPosition = new Vector2(x + 6f, 42f);
+            }
+            portraitGlyph = UIKit.Label(portraitRoot, "Glyph", "", 110, Theme.Ink, TextAnchor.MiddleCenter);
+            var grt = portraitGlyph.rectTransform;
+            grt.anchorMin = grt.anchorMax = new Vector2(0.5f, 0.5f);
+            grt.sizeDelta = new Vector2(300f, 160f);
+            grt.anchoredPosition = new Vector2(0f, -70f);
+
+            // 대사 상자(엄지 닿는 아래쪽)
+            var box = UIKit.Panel(rootRt, "Speech", Theme.StoryPanel, 1f);
+            UIKit.Bottom(box.rectTransform, 580f, 40f, 32f, 32f);
+            box.raycastTarget = false;
+            storySpeaker = UIKit.FitLabel(box.transform, "Speaker", "", 44, Theme.Star, TextAnchor.MiddleLeft);
+            UIKit.Top(storySpeaker.rectTransform, 72f, 26f, 44f, 44f);
+            storyText = UIKit.Label(box.transform, "Text", "", 44, Theme.StoryText, TextAnchor.UpperLeft);
+            UIKit.Stretch(storyText.rectTransform, 44f, 112f, 44f, 160f);
+            storyNext = UIKit.Button(box.transform, "Next", "다음", 44, Theme.Accent, Color.white, AdvanceStory);
+            UIKit.Bottom((RectTransform)storyNext.transform, 112f, 30f, 44f, 44f);
+
+            ShowStoryLine();
+        }
+
+        void ShowStoryLine()
+        {
+            var line = storyBeat.lines[storyIndex];
+            var speaker = Story.Speaker(line.speaker);
+            bool face = speaker != null;
+            if (portraitRoot.gameObject.activeSelf != face) portraitRoot.gameObject.SetActive(face);
+            if (face)
+            {
+                portrait.color = Theme.Hex(speaker.color);
+                portraitGlyph.text = speaker.glyph;
+                storySpeaker.text = speaker.name;
+                storySpeaker.color = Color.Lerp(Theme.Hex(speaker.color), Color.white, 0.35f);
+            }
+            else storySpeaker.text = "";
+            storyText.color = face ? Theme.StoryText : Theme.HudSoft;
+            typeFull = line.text;
+            typeTime = 0f;
+            typing = true;
+            storyText.text = "";
+            UIKit.SetLabel(storyNext, "다음");
+        }
+
+        void ShowStoryGoal()
+        {
+            storyOnGoal = true;
+            typing = false;
+            portraitRoot.gameObject.SetActive(false);
+            storySpeaker.text = storyBeat.id.StartsWith("night") ? "오늘의 목표" : "한 줄 정리";
+            storySpeaker.color = Theme.Fire;
+            storyText.color = Theme.StoryText;
+            storyText.text = storyBeat.goal;
+            UIKit.SetLabel(storyNext, storyDoneLabel);
+        }
+
+        void AdvanceStory()
+        {
+            if (storyGo == null) return;
+            if (typing)
+            {
+                typing = false;
+                storyText.text = typeFull;
+                return;
+            }
+            if (storyOnGoal)
+            {
+                FinishStory();
+                return;
+            }
+            storyIndex++;
+            if (storyIndex < storyBeat.lines.Length) ShowStoryLine();
+            else ShowStoryGoal();
+        }
+
+        /// <summary>건너뛰기: 목표 화면으로 바로 가고, 이미 목표 화면이면 끝낸다.</summary>
+        public void SkipStory()
+        {
+            if (storyGo == null) return;
+            if (storyOnGoal) FinishStory();
+            else ShowStoryGoal();
+        }
+
+        void FinishStory()
+        {
+            var done = storyDone;
+            Hide();
+            if (done != null) done();
+        }
+
+        /// <summary>매 프레임: 대사를 타자 치듯 한 글자씩 보여 준다.</summary>
+        public void Update(float dt)
+        {
+            if (!typing || storyText == null) return;
+            typeTime += dt;
+            int n = Mathf.FloorToInt(typeTime * TypeSpeed);
+            if (n >= typeFull.Length)
+            {
+                typing = false;
+                storyText.text = typeFull;
+            }
+            else storyText.text = typeFull.Substring(0, n);
         }
 
         // ───────────── 타이틀 ─────────────
@@ -111,14 +315,14 @@ namespace KitchenDefense.Game
             var hero = c.Box(Theme.Paper, 6f, 10);
             var big = c.Text(hero, "막타 키친", 128, Theme.Accent, TextAnchor.MiddleCenter);
             big.fontStyle = FontStyle.Bold;
-            c.Text(hero, "주방 디펜스", 56, Theme.Ink, TextAnchor.MiddleCenter);
-            c.Text(hero, "밤엔 몬스터를 막고, 낮엔 그 몬스터로 요리한다", 34, Theme.InkSoft, TextAnchor.MiddleCenter);
+            c.Text(hero, "한밤의 주방 수비대", 56, Theme.Ink, TextAnchor.MiddleCenter);
+            c.Text(hero, "사장님이 잠든 사이, 주방 식구들이 깨어난다", 34, Theme.InkSoft, TextAnchor.MiddleCenter);
 
             var how = c.Box(Theme.Card);
             c.Heading(how, "핵심 규칙", Theme.Accent);
-            c.BodyText(how, "조리기구가 곧 타워입니다. 몬스터에게 " + Theme.Colorize("마지막 피해(막타)", Theme.Accent)
-                + "를 준 기구의 조리법이 재료를 정하고, 그 재료가 내일의 메뉴가 됩니다.");
-            c.Text(how, "예) 뿔멧돼지를 그릴로 막타 = 구운 갈비, 식칼로 막타 = 생고기", Card.SmallSize, Theme.InkSoft);
+            c.BodyText(how, "주방 식구(조리기구)가 곧 타워입니다. 도둑 동물을 쫓아낸 " + Theme.Colorize("막타", Theme.Accent)
+                + " 식구가 동물이 떨어뜨린 음식을 제 방식대로 손질하고, 그 재료가 내일의 메뉴가 됩니다.");
+            c.Text(how, "예) 멧돼지를 불판 아저씨로 막타 = 군고구마, 칼 삼형제로 막타 = 고구마 채", Card.SmallSize, Theme.InkSoft);
 
             int best = SaveSystem.BestScore;
             c.Text(c.Body, "최고 점수 " + best + "점  |  프로토타입 v0.1 (기획서 첫 프로토타입 범위)", 28, Theme.InkSoft, TextAnchor.MiddleCenter);
@@ -146,24 +350,25 @@ namespace KitchenDefense.Game
 
         public void ShowIntro()
         {
-            var c = New("개업 전야", "시즌 " + Balance.SeasonDays + "일  |  0일 밤 습격부터 시작합니다");
+            var c = New("개업 전야", "평론가 방문까지 " + Story.DaysUntilCritic(0) + "일  |  0일 밤부터 시작합니다");
             var story = c.Box(Theme.Card);
-            c.BodyText(story, "오늘 밤, 가게 문을 열기 전 첫 습격이 온다. 몬스터가 창고에 닿지 못하게 막고, 원하는 조리기구로 막타를 쳐서 재료를 모으자.");
+            c.BodyText(story, "찍찍단이 조리대의 음식을 낚아채 창고로 달아난다. 놈들을 쫓아내고, 떨어뜨린 음식은 그 자리에서 손질해 두자. 아침에 사장님이 그 재료로 영업한다.");
+            c.Text(story, "창고가 털릴 때마다 위생이 1 깎이고, 0이 되면 영업 정지. 닷새 뒤 미식 평론가가 온다!", Card.SmallSize, Theme.InkSoft);
 
             var rule = c.Box(Theme.Card);
             c.Heading(rule, "막타 = 조리법", Theme.Accent);
             foreach (var def in GameData.Tools)
                 c.BodyText(rule, Theme.Colorize(def.glyph, Color.Lerp(Theme.ToolColor(def.type), Theme.Ink, 0.4f)) + "  " + def.name + ": " + def.description);
-            c.Text(rule, "표에 없는 조합(예: 슬라임을 식칼로)은 잡재료가 되어 오늘의 백반으로 헐값에 팔립니다.", Card.SmallSize, Theme.InkSoft);
+            c.Text(rule, "표에 없는 조합(예: 치즈를 솥할매가 삶기)은 잡재료가 되어 오늘의 백반으로 헐값에 팔립니다.", Card.SmallSize, Theme.InkSoft);
 
             var ctrl = c.Box(Theme.Card);
             c.Heading(ctrl, "조작", Theme.Accent);
-            c.BodyText(ctrl, "- 경로 옆 빈 칸을 탭하고 아래 바에서 기구 고르기 (가마솥은 경로 위)");
-            c.BodyText(ctrl, "- 설치한 기구를 탭: 약불(피해 절반) / 강화 / 이동 / 회수");
-            c.BodyText(ctrl, "- 몬스터 옆 아이콘: 지금 상태로 막타를 칠 기구 예상");
+            c.BodyText(ctrl, "- 길 옆 빈 칸을 탭하고 아래 바에서 식구 고르기 (솥할매는 길 위)");
+            c.BodyText(ctrl, "- 배치한 식구를 탭: 약불(피해 절반) / 강화 / 이동 / 회수");
+            c.BodyText(ctrl, "- 동물 옆 아이콘: 지금 상태로 막타를 칠 식구 예상");
             c.BodyText(ctrl, "- 웨이브 사이 준비 시간에는 이동과 회수가 무료");
 
-            AddOfferBox(c, "첫 예약 제안 (1일차 낮)");
+            AddOfferBox(c, "사장님의 예약 메모 (1일차)");
             c.FooterButton("거절하고 시작", Theme.Hex(0x8D7B6D), () => ctl.ResolveOfferAndStartNight(false));
             c.FooterButton("수락하고 시작", Theme.Accent, () => ctl.ResolveOfferAndStartNight(true));
         }
@@ -186,11 +391,11 @@ namespace KitchenDefense.Game
             var n = Run.night;
             var c = New(n.index + "일 밤 방어 완료", StatusLine());
             var box = c.Box(Theme.Card);
-            c.Heading(box, "처치 " + n.kills + "  |  누수 " + n.leaks, n.leaks > 0 ? Theme.Bad : Theme.Good);
-            if (n.eaten.Count > 0) c.BodyText(box, Theme.Colorize("창고에서 먹힌 재료: " + Texts.Group(n.eaten), Theme.Bad));
+            c.Heading(box, "쫓아냄 " + n.kills + "  |  창고 털림 " + n.leaks, n.leaks > 0 ? Theme.Bad : Theme.Good);
+            if (n.eaten.Count > 0) c.BodyText(box, Theme.Colorize("창고에서 털린 재료: " + Texts.Group(n.eaten), Theme.Bad));
 
             var haul = c.Box(Theme.Card);
-            c.Heading(haul, "오늘 밤 얻은 재료 " + n.haul.Count + "개", Theme.Accent);
+            c.Heading(haul, "오늘 밤 손질한 재료 " + n.haul.Count + "개", Theme.Accent);
             c.BodyText(haul, n.haul.Count > 0 ? Texts.Group(n.haul, "\n", true) : "없음");
 
             var res = ctl.Session.UpcomingReservation;
@@ -277,7 +482,7 @@ namespace KitchenDefense.Game
             int scraps = 0;
             foreach (var s in run.storage) if (s.id == GameData.Scraps) scraps++;
             c.Text(mb, "오늘의 백반: 잡재료 " + scraps + "개는 동네 주민에게 자동으로 팝니다 (" + Balance.ScrapsMealPrice + "G씩).", Card.SmallSize, Theme.InkSoft);
-            c.Text(mb, "얼린 재료는 같은 몬스터의 다른 재료로 대체할 수 있어요 (판매가 -30%).", Card.SmallSize, Theme.InkSoft);
+            c.Text(mb, "얼린 재료는 같은 음식의 다른 재료로 대체할 수 있어요 (예: 얼린 고구마로 군고구마, 판매가 -30%).", Card.SmallSize, Theme.InkSoft);
 
             RefreshDishRows();
             c.FooterButton("영업 시작 (손님 " + DayLogic.CustomerCount(run) + "명)", Theme.Accent, ctl.RunBusiness);
@@ -428,7 +633,7 @@ namespace KitchenDefense.Game
             var tb = c.Box(Theme.Card);
             c.Heading(tb, "총 수입 +" + rep.totalGold + "G", Theme.Gold);
             c.BodyText(tb, "평판 " + Texts.Star + rep.repBefore + " > " + Texts.Star + rep.repAfter
-                + (rep.repAfter > rep.repBefore ? "  (손님이 늘고 몬스터도 강해집니다)" : ""));
+                + (rep.repAfter > rep.repBefore ? "  (손님이 늘고 찍찍단도 거세집니다)" : ""));
 
             if (run.IsFinalDay) c.FooterButton("시즌 평가 보기", Theme.Accent, ctl.AfterResult);
             else c.FooterButton("상점으로", Theme.Accent, ctl.AfterResult);
@@ -442,7 +647,7 @@ namespace KitchenDefense.Game
             var c = New(run.day + "일차 정비  |  상점", StatusLine());
 
             var rb = c.Box(Theme.Card);
-            c.Heading(rb, "가게 수리", Theme.Ink);
+            c.Heading(rb, "대청소", Theme.Ink);
             repairInfo = c.BodyText(rb, "");
             repairButton = c.RowButton(rb, "", Theme.Good, () =>
             {
@@ -478,8 +683,8 @@ namespace KitchenDefense.Game
             if (current == null || repairButton == null) return;
             var run = Run;
             UIKit.SetText(current.Subtitle, StatusLine());
-            UIKit.SetText(repairInfo, "내구도 +" + Balance.RepairAmount + "  (지금 " + run.durability + "/" + Balance.MaxDurability + ")");
-            UIKit.SetLabel(repairButton, run.durability >= Balance.MaxDurability ? "수리할 곳 없음" : "수리 " + Balance.RepairPrice + "G");
+            UIKit.SetText(repairInfo, "위생 +" + Balance.RepairAmount + "  (지금 " + run.durability + "/" + Balance.MaxDurability + ")");
+            UIKit.SetLabel(repairButton, run.durability >= Balance.MaxDurability ? "이미 반짝반짝해요" : "청소 " + Balance.RepairPrice + "G");
             repairButton.interactable = DayLogic.CanRepair(run);
             foreach (var row in shopRows)
             {
@@ -514,7 +719,7 @@ namespace KitchenDefense.Game
             foreach (var s in run.storage) ids.Add(s.id);
             c.BodyText(sb, Texts.Group(ids));
 
-            AddOfferBox(c, "내일 예약 제안 (" + (run.day + 1) + "일차)");
+            AddOfferBox(c, "냉장고에 붙은 예약 메모 (" + (run.day + 1) + "일차)");
             if (run.offer.active)
             {
                 c.FooterButton("거절하고 밤으로", Theme.Hex(0x8D7B6D), () => ctl.ResolveOfferAndStartNight(false));
@@ -529,7 +734,7 @@ namespace KitchenDefense.Game
         {
             var run = Run;
             var session = ctl.Session;
-            var c = New(run.failed ? "폐업..." : "시즌 종료  |  미식 평론가 평가", run.failed ? run.night.index + "일 밤, 가게가 무너졌습니다" : Balance.SeasonDays + "일 영업을 마쳤습니다");
+            var c = New(run.failed ? "영업 정지..." : "시즌 종료  |  미식 평론가 평가", run.failed ? run.night.index + "일 밤, 주방이 엉망이 되었습니다" : Balance.SeasonDays + "일 영업을 마쳤습니다");
 
             var rb = c.Box(Theme.Card, 4f);
             var rank = c.Text(rb, session.Rank, 160, run.failed ? Theme.Bad : Theme.Accent, TextAnchor.MiddleCenter);
@@ -540,10 +745,10 @@ namespace KitchenDefense.Game
             var st = run.stats;
             var sb = c.Box(Theme.Card);
             c.Heading(sb, "시즌 기록", Theme.Ink);
-            c.BodyText(sb, "번 골드 " + st.totalGold + "G  |  평판 " + Texts.Star + run.reputation + "  |  내구도 " + run.durability);
+            c.BodyText(sb, "번 골드 " + st.totalGold + "G  |  평판 " + Texts.Star + run.reputation + "  |  위생 " + run.durability);
             c.BodyText(sb, "예약 성공 " + st.reservationsDone + "  |  실패 " + st.reservationsFailed);
-            c.BodyText(sb, "처치 " + st.kills + "  |  누수 " + st.leaks + "  |  판 요리 " + st.dishesSold);
-            c.Text(sb, "점수 = 번 골드 + 평판 x100 + 내구도 x20 + 예약 성공 x50", Card.SmallSize, Theme.InkSoft);
+            c.BodyText(sb, "쫓아냄 " + st.kills + "  |  창고 털림 " + st.leaks + "  |  판 요리 " + st.dishesSold);
+            c.Text(sb, "점수 = 번 골드 + 평판 x100 + 위생 x20 + 예약 성공 x50", Card.SmallSize, Theme.InkSoft);
 
             var db = c.Box(Theme.AccentSoft);
             c.Heading(db, "발견한 요리 " + st.discovered.Count + "/" + GameData.Recipes.Length, Theme.Accent);
@@ -561,13 +766,13 @@ namespace KitchenDefense.Game
         {
             var c = New("게임 방법", "기획서 v0.1 첫 프로토타입 범위");
             var tb = c.Box(Theme.Card);
-            c.Heading(tb, "조리기구 (타워)", Theme.Accent);
+            c.Heading(tb, "주방 식구 (타워)", Theme.Accent);
             foreach (var t in GameData.Tools)
                 c.BodyText(tb, t.name + " (화력 " + t.cost + ", " + GameData.MethodName(t.method) + "): " + t.description);
             c.Text(tb, "약불: 피해를 절반으로 줄여 다음 기구에 막타를 넘깁니다. 강화: 화력을 써서 오늘 밤 동안 피해 +40%.", Card.SmallSize, Theme.InkSoft);
 
             var mb = c.Box(Theme.Card);
-            c.Heading(mb, "몬스터와 재료", Theme.Accent);
+            c.Heading(mb, "찍찍단(도둑 동물)과 떨어뜨리는 음식", Theme.Accent);
             foreach (var m in GameData.Monsters)
             {
                 var sb = new StringBuilder();
@@ -596,9 +801,9 @@ namespace KitchenDefense.Game
             var lb = c.Box(Theme.Card);
             c.Heading(lb, "규칙", Theme.Accent);
             c.BodyText(lb, "- 재료는 3일, 얼린 재료는 6일 갑니다. 창고는 8칸.");
-            c.BodyText(lb, "- 창고에 닿은 몬스터는 가장 비싼 재료를 하나 먹고 내구도를 1 깎습니다. 내구도 0이면 폐업.");
+            c.BodyText(lb, "- 창고에 닿은 동물은 가장 비싼 재료를 하나 훔쳐 가고 주방을 어지럽혀 위생이 1 깎입니다. 위생 0이면 영업 정지.");
             c.BodyText(lb, "- 예약 보상은 일반 판매의 2배 이상. 받고 못 지키면 평판 -1.");
-            c.BodyText(lb, "- 평판이 오르면 손님과 판매가가 늘지만, 냄새가 퍼져 몬스터도 강해집니다.");
+            c.BodyText(lb, "- 평판이 오르면 손님과 판매가가 늘지만, 냄새가 퍼져 찍찍단도 거세집니다.");
 
             c.FooterButton("돌아가기", Theme.Accent, back);
             helpBack = back;

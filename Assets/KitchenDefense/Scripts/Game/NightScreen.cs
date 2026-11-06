@@ -276,7 +276,7 @@ namespace KitchenDefense.Game
             if (map.IsReserved(cell.col, cell.row))
             {
                 ResetInteraction();
-                Toast(cell == map.Entrance ? "뒷문: 몬스터가 들어오는 곳" : "창고: 몬스터가 닿으면 재료를 먹고 내구도가 1 깎여요");
+                Toast(cell == map.Entrance ? "뒷문: 찍찍단이 몰래 들어오는 곳" : "창고: 동물이 닿으면 재료를 훔쳐 가고 위생이 1 깎여요");
                 return;
             }
 
@@ -344,7 +344,7 @@ namespace KitchenDefense.Game
             if (t == null) return;
             if (Sim.ToggleLowHeat(t))
             {
-                Toast(t.lowHeat ? "약불: 피해 절반, 막타를 다음 기구에 넘겨요" : "약불 해제");
+                Toast(t.lowHeat ? "약불: 피해 절반, 막타를 다음 식구에게 넘겨요" : "약불 해제");
                 ctl.MarkDirty();
             }
         }
@@ -522,14 +522,16 @@ namespace KitchenDefense.Game
         void UpdateTexts(NightSimulation sim, RunState run, NightState n)
         {
             int total = n.waves.Count;
+            var beat = Story.BeforeNight(n.index);
+            string name = n.index + "일 밤" + (beat != null ? " " + beat.title : "");
             string t;
-            if (n.waveActive) t = n.index + "일 밤  |  웨이브 " + (n.waveIndex + 1) + "/" + total;
-            else if (n.finished) t = n.index + "일 밤  |  방어 완료!";
-            else t = n.index + "일 밤  |  준비 시간 (웨이브 " + (n.waveIndex + 1) + "/" + total + ")";
+            if (n.waveActive) t = name + "  |  웨이브 " + (n.waveIndex + 1) + "/" + total;
+            else if (n.finished) t = name + "  |  방어 완료!";
+            else t = name + "  |  준비 (웨이브 " + (n.waveIndex + 1) + "/" + total + ")";
             UIKit.SetText(title, t);
 
             UIKit.SetText(stats,
-                Theme.Colorize(Texts.Heart + " " + run.durability + "/" + Balance.MaxDurability, Theme.Heart) + "     " +
+                Theme.Colorize(Texts.Heart + " 위생 " + run.durability + "/" + Balance.MaxDurability, Theme.Heart) + "     " +
                 Theme.Colorize("화력 " + n.firepower, Theme.Fire) + "     " +
                 Theme.Colorize("골드 " + run.gold, Theme.Gold) + "     " +
                 Theme.Colorize(Texts.Star + " " + run.reputation, Theme.Star));
@@ -538,10 +540,10 @@ namespace KitchenDefense.Game
             string g;
             if (res != null)
             {
-                g = Theme.Colorize("내일 예약", Theme.Fire) + "  " + res.party + " | " + Texts.RecipeName(res.recipeId) + " x" + res.servings
+                g = Theme.Colorize("내일 예약 메모", Theme.Fire) + "  " + res.party + " | " + Texts.RecipeName(res.recipeId) + " x" + res.servings
                     + "\n" + Texts.NeedsProgress(ctl.Needs);
             }
-            else g = Theme.Colorize("내일 예약 없음", Theme.HudSoft) + "\n마음껏 재료를 모으세요. 막타 친 기구의 조리법이 재료가 됩니다.";
+            else g = Theme.Colorize("내일 예약 없음", Theme.HudSoft) + "\n마음껏 재료를 모으세요. 막타 친 식구가 음식을 손질합니다.";
             UIKit.SetText(goal, g);
 
             if (SelectedTower != null)
@@ -550,7 +552,7 @@ namespace KitchenDefense.Game
                 var def = GameData.Tool(tw.type);
                 var sb = new StringBuilder();
                 sb.Append(def.name).Append(" Lv").Append(tw.level + 1).Append("  |  ").Append(GameData.MethodName(def.method));
-                sb.Append("  |  처치 ").Append(tw.kills);
+                sb.Append("  |  쫓아냄 ").Append(tw.kills);
                 if (tw.lowHeat) sb.Append("  |  ").Append(Theme.Colorize("약불", Theme.Hex(0x90CAF9)));
                 if (sim.TowerRate(tw) < 1f) sb.Append("  |  ").Append(Theme.Colorize("포자: 느려짐", Theme.Hex(0xCE93D8)));
                 UIKit.SetText(towerInfo, sb.ToString());
@@ -567,16 +569,16 @@ namespace KitchenDefense.Game
             else if (hasCell)
             {
                 bool path = Session.Map.IsPath(selectedCell.col, selectedCell.row);
-                c = "칸을 골랐어요. 아래에서 기구를 고르세요.\n" + (path ? "경로 위: 가마솥만 놓을 수 있어요" : "경로 옆: 식칼 거치대, 그릴, 냉동고");
+                c = "칸을 골랐어요. 아래에서 식구를 고르세요.\n" + (path ? "길 위: 솥할매만 설 수 있어요" : "길 옆: 칼 삼형제, 불판 아저씨, 냉동고 언니");
             }
             else if (n.finished) c = "모든 웨이브를 막았습니다!";
             else if (n.waveActive)
             {
                 int left = sim.AliveCount + sim.PendingSpawns;
-                c = "남은 몬스터 " + left + "\n몬스터 옆 아이콘 = 지금 막타를 칠 기구. 기구를 탭하면 약불/강화";
+                c = "남은 도둑 " + left + "\n동물 옆 아이콘 = 지금 막타를 칠 식구. 식구를 탭하면 약불/강화";
             }
             else if (n.index == 0 && n.towers.Count == 0)
-                c = "경로 옆 빈 칸을 탭하고 아래에서 기구를 고르세요.\n몬스터에게 마지막 피해를 준 기구가 재료를 정합니다!";
+                c = "길 옆 빈 칸을 탭하고 아래에서 식구를 고르세요.\n막타를 친 식구가 동물이 떨어뜨린 음식을 손질합니다!";
             else
                 c = "다음: " + Texts.WavePreview(sim.NextWave) + "\n준비 시간에는 이동과 회수가 무료예요.";
             UIKit.SetText(context, c);

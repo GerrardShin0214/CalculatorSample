@@ -46,7 +46,7 @@ namespace KitchenDefense.Tests
             TestUtil.Build(sim, ToolType.Grill, 3, 5);
             TestUtil.Build(sim, ToolType.Freezer, 2, 3);
             sim.ToggleLowHeat(sim.TowerAt(3, 5));
-            original.Run.storage.Add(TestUtil.Item("grilled_ribs", 0));
+            original.Run.storage.Add(TestUtil.Item("roasted_potato", 0));
             sim.StartWave();
             for (int i = 0; i < 240; i++)
             {
@@ -111,13 +111,13 @@ namespace KitchenDefense.Tests
         [Test]
         public void DaySave_KeepsMenuReservationAndRng()
         {
-            var s = TestUtil.DaySession(5, 2, TestUtil.Item("grilled_mushroom", 1), TestUtil.Item("grilled_mushroom", 1), TestUtil.Item("raw_meat", 1));
-            s.Run.reservation = new Reservation { active = true, day = 2, party = "숲속 산책 모임", recipeId = "mushroom_skewer", servings = 1, rewardGold = 60, rewardRep = 1 };
-            s.ToggleMenu("boar_yukhoe");
+            var s = TestUtil.DaySession(5, 2, TestUtil.Item("grilled_cheese", 1), TestUtil.Item("grilled_cheese", 1), TestUtil.Item("potato_strips", 1));
+            s.Run.reservation = new Reservation { active = true, day = 2, party = "학교 앞 학생들", recipeId = "cheese_skewer", servings = 1, rewardGold = 60, rewardRep = 1 };
+            s.ToggleMenu("candied_potato");
             var restored = new GameSession(FromJson(ToJson(s.Run)));
             Assert.AreEqual(GamePhase.DayMenu, restored.Phase);
             CollectionAssert.AreEqual(s.Run.dayState.menu, restored.Run.dayState.menu);
-            Assert.AreEqual("mushroom_skewer", restored.Run.reservation.recipeId);
+            Assert.AreEqual("cheese_skewer", restored.Run.reservation.recipeId);
             Assert.AreEqual(s.Run.rng.state, restored.Run.rng.state);
             var a = s.RunBusiness();
             var b = restored.RunBusiness();

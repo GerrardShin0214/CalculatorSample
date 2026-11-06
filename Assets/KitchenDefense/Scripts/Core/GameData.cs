@@ -9,8 +9,8 @@ namespace KitchenDefense.Core
     /// <summary>조리기구(타워). 첫 프로토타입 범위의 시작 기구 4종.</summary>
     public enum ToolType { Knife = 0, Grill = 1, Freezer = 2, Cauldron = 3 }
 
-    /// <summary>첫 프로토타입 범위의 몬스터 4종 + 슬라임 분열체.</summary>
-    public enum MonsterType { Slime = 0, SlimeSmall = 1, Mushroom = 2, Boar = 3, Crab = 4 }
+    /// <summary>주방에 몰래 들어오는 도둑 동물(찍찍단) 4종 + 생쥐 떼가 흩어진 꼬마 생쥐.</summary>
+    public enum MonsterType { MouseGang = 0, Mouse = 1, FlySwarm = 2, Boar = 3, Raccoon = 4 }
 
     public enum ShopEffect { Repair = 0, MenuSlot = 1, Storage = 2, Knife = 3, Grill = 4, Freezer = 5, Cauldron = 6, Firepower = 7 }
 
@@ -65,6 +65,8 @@ namespace KitchenDefense.Core
         public float chargeDelay;
         public float knifeMultiplier = 1f;
         public float heatMultiplier = 1f;
+        /// <summary>처음 나오는 밤(이야기에서 소개되는 순서). 예약도 이미 나온 동물의 재료로만 들어온다.</summary>
+        public int introNight;
         public string prepIngredient;
         public string grillIngredient;
         public string freezeIngredient;
@@ -112,6 +114,7 @@ namespace KitchenDefense.Core
     {
         /// <summary>첫 프로토타입: 5일 시즌(0~4일 밤, 1~5일 낮).</summary>
         public const int SeasonDays = 5;
+        /// <summary>위생 점수(기획서의 가게 내구도). 창고가 털릴 때마다 -1, 0이 되면 영업 정지(시즌 실패).</summary>
         public const int MaxDurability = 10;
         public const int StartGold = 60;
         public const int BaseStorage = 8;
@@ -157,104 +160,105 @@ namespace KitchenDefense.Core
     {
         public const string Scraps = "scraps";
 
+        // 주방 식구들: 사장님이 잠들면 깨어나는 의인화된 식기. name은 캐릭터 이름, description 앞부분은 원래 기구.
         public static readonly ToolDef[] Tools =
         {
             new ToolDef
             {
-                type = ToolType.Knife, name = "식칼 거치대", glyph = "칼", method = CookMethod.Prep,
+                type = ToolType.Knife, name = "칼 삼형제", glyph = "칼", method = CookMethod.Prep,
                 cost = 50, range = 1.6f, damage = 8f, interval = 0.5f, color = 0xCFD8DC,
-                role = "주력 딜", description = "빠른 단일 타격. 막타 시 손질 재료",
+                role = "주력 딜", description = "식칼 거치대. 빠르게 한 마리씩 벤다. 막타 시 썰어서 손질",
             },
             new ToolDef
             {
-                type = ToolType.Grill, name = "그릴", glyph = "불", method = CookMethod.Grill,
+                type = ToolType.Grill, name = "불판 아저씨", glyph = "불", method = CookMethod.Grill,
                 cost = 70, range = 1.5f, interval = 1f, burnDps = 7f, burnDuration = 2.5f, color = 0xFF7043,
-                role = "광역 딜", description = "범위 화상(지속 피해). 막타 시 구이 재료",
+                role = "광역 딜", description = "그릴. 주변을 한꺼번에 지진다(지속 피해). 막타 시 구이",
             },
             new ToolDef
             {
-                type = ToolType.Freezer, name = "냉동고", glyph = "냉", method = CookMethod.Freeze,
+                type = ToolType.Freezer, name = "냉동고 언니", glyph = "냉", method = CookMethod.Freeze,
                 cost = 60, range = 1.5f, damage = 3f, interval = 1.2f, slowFactor = 0.5f, slowDuration = 1.6f, color = 0x81D4FA,
-                role = "제어, 재료 보존", description = "냉기 분사로 감속. 막타 시 얼린 원재료(보존 2배)",
+                role = "제어, 재료 보존", description = "냉동고. 냉기로 느리게 만든다. 막타 시 얼린 재료(보존 2배)",
             },
             new ToolDef
             {
-                type = ToolType.Cauldron, name = "가마솥", glyph = "솥", method = CookMethod.Boil,
+                type = ToolType.Cauldron, name = "솥할매", glyph = "솥", method = CookMethod.Boil,
                 cost = 80, range = 0.5f, interval = 5f, killThreshold = 0.25f, onPath = true, color = 0x9CCC65,
-                role = "막타 확정", description = "경로 위 함정. 체력 25% 이하 몬스터를 즉시 삶는다",
+                role = "막타 확정", description = "가마솥. 길목에서 기다리다 기운 빠진(체력 25% 이하) 녀석을 삶는다",
             },
         };
 
+        // 찍찍단: 주방 조리대에서 음식을 낚아채 창고까지 달아나려는 도둑 동물들.
+        // 쫓겨날 때 물고 있던 음식을 떨어뜨리고, 막타를 친 식구가 그 자리에서 손질한다(재료 = 동물이 문 음식 x 조리법).
         public static readonly MonsterDef[] Monsters =
         {
             new MonsterDef
             {
-                type = MonsterType.Slime, name = "젤리 슬라임", hp = 48f, speed = 0.75f, reward = 5, cost = 3, radius = 0.3f,
-                color = 0x8BE36A, trait = "느림. 죽으면 꼬마 슬라임 2마리로 분열",
-                splitInto = MonsterType.SlimeSmall, splitCount = 2,
-                grillIngredient = "grilled_jelly", freezeIngredient = "frozen_jelly",
+                type = MonsterType.MouseGang, name = "생쥐 떼", hp = 48f, speed = 0.75f, reward = 5, cost = 3, radius = 0.3f,
+                color = 0xA9A3A0, trait = "치즈를 굴리며 몰려온다. 쫓겨나면 꼬마 생쥐 2마리가 흩어진다", introNight = 0,
+                splitInto = MonsterType.Mouse, splitCount = 2,
+                prepIngredient = "cheese_slice", grillIngredient = "grilled_cheese", freezeIngredient = "frozen_cheese",
             },
             new MonsterDef
             {
-                type = MonsterType.SlimeSmall, name = "꼬마 슬라임", hp = 14f, speed = 1f, reward = 1, cost = 1, radius = 0.19f,
-                color = 0xB9F59B, trait = "분열체. 너무 작아서 재료가 나오지 않음", dropsIngredient = false,
+                type = MonsterType.Mouse, name = "꼬마 생쥐", hp = 14f, speed = 1f, reward = 1, cost = 1, radius = 0.19f,
+                color = 0xCDC7C4, trait = "빈손으로 창고까지 내달린다(재료 없음)", introNight = 0, dropsIngredient = false,
             },
             new MonsterDef
             {
-                type = MonsterType.Mushroom, name = "걷는 버섯", hp = 62f, speed = 0.85f, reward = 6, cost = 3, radius = 0.3f,
-                color = 0xE57373, trait = "포자로 주변 기구 공격 속도 감소",
-                sporeRadius = 1.5f, sporeRateMultiplier = 0.7f,
-                grillIngredient = "grilled_mushroom", boilIngredient = "mushroom_broth", freezeIngredient = "frozen_mushroom",
+                type = MonsterType.FlySwarm, name = "파리 떼", hp = 62f, speed = 0.85f, reward = 6, cost = 3, radius = 0.3f,
+                color = 0x55505E, trait = "음식은 안 들고 온다. 윙윙 소리에 근처 식구들이 느려진다", introNight = 1,
+                dropsIngredient = false, sporeRadius = 1.5f, sporeRateMultiplier = 0.7f,
             },
             new MonsterDef
             {
-                type = MonsterType.Boar, name = "뿔멧돼지", hp = 70f, speed = 1.25f, reward = 7, cost = 4, radius = 0.33f,
-                color = 0xA1765A, trait = "빠름. 직선 구간에서 돌진(감속당하면 멈춤)",
+                type = MonsterType.Boar, name = "멧돼지", hp = 70f, speed = 1.25f, reward = 7, cost = 4, radius = 0.33f,
+                color = 0x8D6E63, trait = "뒷산에서 고구마를 물고 내려왔다. 직선에서 돌진(감속당하면 멈춤)", introNight = 2,
                 chargeMultiplier = 1.5f, chargeDelay = 0.6f,
-                prepIngredient = "raw_meat", grillIngredient = "grilled_ribs", boilIngredient = "boiled_meat", freezeIngredient = "frozen_meat",
+                prepIngredient = "potato_strips", grillIngredient = "roasted_potato", boilIngredient = "steamed_potato", freezeIngredient = "frozen_potato",
             },
             new MonsterDef
             {
-                type = MonsterType.Crab, name = "갑옷게", hp = 120f, speed = 0.65f, reward = 9, cost = 5, radius = 0.33f,
-                color = 0xFF9E40, trait = "칼 피해 50% 감소, 열에 약함(화상 1.5배)",
+                type = MonsterType.Raccoon, name = "너구리", hp = 120f, speed = 0.65f, reward = 9, cost = 5, radius = 0.34f,
+                color = 0x9E9A96, trait = "생선을 한 아름 들고 온다. 털이 두꺼워 칼 피해 50% 감소, 뜨거운 건 질색(화상 1.5배)", introNight = 3,
                 knifeMultiplier = 0.5f, heatMultiplier = 1.5f,
-                grillIngredient = "grilled_crab", boilIngredient = "boiled_crab", freezeIngredient = "frozen_crab",
+                prepIngredient = "fish_fillet", grillIngredient = "grilled_fish", boilIngredient = "braised_fish", freezeIngredient = "frozen_fish",
             },
         };
 
         public static readonly IngredientDef[] Ingredients =
         {
-            Ing("frozen_jelly", "얼린 젤리", MonsterType.Slime, CookMethod.Freeze, 8, true),
-            Ing("grilled_jelly", "구운 젤리", MonsterType.Slime, CookMethod.Grill, 12, false),
-            Ing("grilled_mushroom", "구운 버섯", MonsterType.Mushroom, CookMethod.Grill, 10, false),
-            Ing("mushroom_broth", "버섯 육수", MonsterType.Mushroom, CookMethod.Boil, 16, false),
-            Ing("frozen_mushroom", "얼린 버섯", MonsterType.Mushroom, CookMethod.Freeze, 7, true),
-            Ing("raw_meat", "생고기", MonsterType.Boar, CookMethod.Prep, 17, false),
-            Ing("grilled_ribs", "구운 갈비", MonsterType.Boar, CookMethod.Grill, 22, false),
-            Ing("boiled_meat", "삶은 고기", MonsterType.Boar, CookMethod.Boil, 24, false),
-            Ing("frozen_meat", "얼린 고기", MonsterType.Boar, CookMethod.Freeze, 14, true),
-            Ing("boiled_crab", "삶은 게", MonsterType.Crab, CookMethod.Boil, 20, false),
-            Ing("grilled_crab", "구운 게", MonsterType.Crab, CookMethod.Grill, 22, false),
-            Ing("frozen_crab", "얼린 게", MonsterType.Crab, CookMethod.Freeze, 14, true),
-            new IngredientDef { id = Scraps, name = "잡재료", monster = MonsterType.Slime, method = CookMethod.None, value = 3, scraps = true },
+            Ing("cheese_slice", "치즈 조각", MonsterType.MouseGang, CookMethod.Prep, 9, false),
+            Ing("grilled_cheese", "구운 치즈", MonsterType.MouseGang, CookMethod.Grill, 11, false),
+            Ing("frozen_cheese", "얼린 치즈", MonsterType.MouseGang, CookMethod.Freeze, 8, true),
+            Ing("potato_strips", "고구마 채", MonsterType.Boar, CookMethod.Prep, 12, false),
+            Ing("roasted_potato", "군고구마", MonsterType.Boar, CookMethod.Grill, 18, false),
+            Ing("steamed_potato", "찐 고구마", MonsterType.Boar, CookMethod.Boil, 16, false),
+            Ing("frozen_potato", "얼린 고구마", MonsterType.Boar, CookMethod.Freeze, 10, true),
+            Ing("fish_fillet", "생선 살", MonsterType.Raccoon, CookMethod.Prep, 17, false),
+            Ing("grilled_fish", "구운 생선", MonsterType.Raccoon, CookMethod.Grill, 24, false),
+            Ing("braised_fish", "조린 생선", MonsterType.Raccoon, CookMethod.Boil, 20, false),
+            Ing("frozen_fish", "얼린 생선", MonsterType.Raccoon, CookMethod.Freeze, 14, true),
+            new IngredientDef { id = Scraps, name = "잡재료", monster = MonsterType.MouseGang, method = CookMethod.None, value = 3, scraps = true },
         };
 
-        /// <summary>맨드레이크·훈연기·보스 재료가 필요 없는 레시피 8개(첫 프로토타입 범위).</summary>
+        /// <summary>레시피 8개. 치즈(생쥐) → 고구마(멧돼지) → 생선(너구리) 순으로 밤마다 하나씩 열린다.</summary>
         public static readonly RecipeDef[] Recipes =
         {
-            Rec("slime_sherbet", "슬라임 셔벗", 15, new[] { "꼬마 손님 생일", "마을 잔치" }, "frozen_jelly"),
-            Rec("mushroom_skewer", "버섯 꼬치", 20, new[] { "숲속 산책 모임", "마을 잔치" }, "grilled_mushroom", "grilled_mushroom"),
-            Rec("caramel_jelly", "캐러멜 젤리", 25, new[] { "꼬마 손님 생일", "제과 길드" }, "grilled_jelly", "grilled_jelly"),
-            Rec("boar_yukhoe", "멧돼지 육회", 35, new[] { "용병단", "사냥꾼 모임" }, "raw_meat", "raw_meat"),
-            Rec("steamed_crab", "통게찜", 40, new[] { "어부 조합", "게 축제 위원회" }, "boiled_crab", "boiled_crab"),
-            Rec("crab_salad", "게살 냉채", 45, new[] { "귀족 집사", "여름 연회" }, "boiled_crab", "frozen_jelly"),
-            Rec("bbq_platter", "바비큐 플래터", 45, new[] { "기사단", "모험가 파티" }, "grilled_ribs", "grilled_mushroom"),
-            Rec("mushroom_hotpot", "버섯 수육 전골", 55, new[] { "기사단", "마을 이장님" }, "boiled_meat", "mushroom_broth"),
+            Rec("cheese_bingsu", "치즈 빙수", 15, new[] { "옆집 꼬마들", "학교 앞 학생들" }, "frozen_cheese"),
+            Rec("cheese_skewer", "치즈 꼬치", 20, new[] { "학교 앞 학생들", "동네 야구단" }, "grilled_cheese", "grilled_cheese"),
+            Rec("candied_potato", "고구마 맛탕", 25, new[] { "동네 할머니들", "유치원 소풍" }, "potato_strips", "potato_strips"),
+            Rec("potato_gratin", "고구마 치즈 그라탱", 35, new[] { "동네 반상회", "신혼부부" }, "cheese_slice", "steamed_potato"),
+            Rec("fish_sashimi", "생선회", 35, new[] { "낚시 동호회", "어부 아저씨들" }, "fish_fillet", "fish_fillet"),
+            Rec("fish_jorim", "생선 조림", 40, new[] { "동네 할머니들", "회사 회식팀" }, "braised_fish", "braised_fish"),
+            Rec("roast_combo", "군고구마 치즈구이", 45, new[] { "등산 동호회", "캠핑 모임" }, "roasted_potato", "grilled_cheese"),
+            Rec("fish_set", "생선구이 정식", 55, new[] { "회사 회식팀", "동네 이장님" }, "grilled_fish", "steamed_potato"),
         };
 
         public static readonly ShopItemDef RepairItem = new ShopItemDef
         {
-            id = "repair", name = "가게 수리", description = "내구도 +" + Balance.RepairAmount,
+            id = "repair", name = "대청소", description = "위생 +" + Balance.RepairAmount,
             effect = ShopEffect.Repair, price = Balance.RepairPrice, maxLevel = 999,
         };
 
@@ -262,10 +266,10 @@ namespace KitchenDefense.Core
         {
             Shop("menu_slot", "메뉴판 확장", "메뉴 슬롯 +1", ShopEffect.MenuSlot, 90, 60, 2),
             Shop("storage", "창고 선반", "창고 +" + Balance.StoragePerUpgrade + "칸", ShopEffect.Storage, 60, 30, 3),
-            Shop("whetstone", "숫돌", "식칼 거치대 피해 +20%", ShopEffect.Knife, 70, 40, 3),
-            Shop("charcoal", "참숯", "그릴 화상 피해 +20%", ShopEffect.Grill, 70, 40, 3),
-            Shop("coolant", "냉매 보충", "냉동고 피해 +20%, 감속 +0.3초", ShopEffect.Freezer, 60, 40, 3),
-            Shop("pressure_lid", "압력솥 뚜껑", "가마솥 재사용 대기 -15%", ShopEffect.Cauldron, 70, 40, 3),
+            Shop("whetstone", "숫돌", "칼 삼형제 피해 +20%", ShopEffect.Knife, 70, 40, 3),
+            Shop("charcoal", "참숯", "불판 아저씨 화상 피해 +20%", ShopEffect.Grill, 70, 40, 3),
+            Shop("coolant", "냉매 보충", "냉동고 언니 피해 +20%, 감속 +0.3초", ShopEffect.Freezer, 60, 40, 3),
+            Shop("pressure_lid", "압력솥 뚜껑", "솥할매 재사용 대기 -15%", ShopEffect.Cauldron, 70, 40, 3),
             Shop("firewood", "장작 비축", "밤 시작 화력 +" + Balance.FirepowerPerUpgrade, ShopEffect.Firepower, 70, 40, 3),
         };
 

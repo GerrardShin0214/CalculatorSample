@@ -102,7 +102,7 @@ namespace KitchenDefense.Core
             var chosen = new int[need.Length];
             for (int k = 0; k < need.Length; k++)
             {
-                chosen[k] = FindBest(storage, taken, today, need[k], MonsterType.Slime, true);
+                chosen[k] = FindBest(storage, taken, today, need[k], MonsterType.MouseGang, true);
                 if (chosen[k] >= 0) taken[chosen[k]] = true;
             }
             for (int k = 0; k < need.Length; k++)
@@ -501,7 +501,8 @@ namespace KitchenDefense.Core
             int maxPrice = forDay <= 1 ? 25 : (forDay == 2 ? 45 : 999);
             var candidates = new List<RecipeDef>();
             foreach (var r in GameData.Recipes)
-                if (r.price <= maxPrice) candidates.Add(r);
+                if (r.price <= maxPrice && IsAvailableFor(r, forDay)) candidates.Add(r);
+            if (candidates.Count == 0) candidates.Add(GameData.Recipes[0]);
             var recipe = candidates[rng.Range(0, candidates.Count)];
 
             int servings;
@@ -522,6 +523,17 @@ namespace KitchenDefense.Core
                 rewardGold = reward,
                 rewardRep = 1,
             };
+        }
+
+        /// <summary>
+        /// 그날 예약으로 들어올 수 있는 요리인가: 재료를 물고 오는 동물이 전날 밤까지 이미 나왔어야 한다.
+        /// (1~2일차 치즈, 3일차부터 고구마, 4일차부터 생선)
+        /// </summary>
+        public static bool IsAvailableFor(RecipeDef recipe, int forDay)
+        {
+            foreach (var id in recipe.ingredients)
+                if (GameData.Monster(GameData.Ingredient(id).monster).introNight > forDay - 1) return false;
+            return true;
         }
 
         // ───────────────────────── 시즌 점수 ─────────────────────────

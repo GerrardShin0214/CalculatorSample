@@ -55,6 +55,7 @@ namespace KitchenDefense.Game
         int predictCursor;
         float nightOverTimer = -1f;
         float lastBackPress = -10f;
+        bool endingShown;
 
         // ───────────── 수명 주기 ─────────────
 
@@ -190,6 +191,7 @@ namespace KitchenDefense.Game
                 toastTime -= dt;
                 if (toastTime <= 0f) toastBg.gameObject.SetActive(false);
             }
+            cards.Update(dt);
             if (Input.GetKeyDown(KeyCode.Escape)) OnBack();
             if (Session == null) return;
 
@@ -318,14 +320,14 @@ namespace KitchenDefense.Game
                         }
                         break;
                     case SimEventType.Split:
-                        Fx.Pop(pos, 0.55f, Theme.MonsterColor(MonsterType.Slime), 0.25f);
+                        Fx.Pop(pos, 0.55f, Theme.MonsterColor(MonsterType.MouseGang), 0.25f);
                         break;
                     case SimEventType.Leaked:
                         Board.FlashStorage();
                         Fx.TryPlay(PixelFxLibrary.HeartLost, pos + new Vector3(0f, 0.25f, 0f), 0.7f);
-                        Fx.Text(pos + new Vector3(0f, 0.45f, 0f), Texts.Heart + " -1", Theme.Heart, 0.36f);
+                        Fx.Text(pos + new Vector3(0f, 0.45f, 0f), Texts.Heart + " 위생 -1", Theme.Heart, 0.34f);
                         if (e.eatenId != null)
-                            Fx.Text(pos + new Vector3(0f, 0.9f, 0f), Texts.IngredientName(e.eatenId) + " 먹힘!", Theme.Bad, 0.28f);
+                            Fx.Text(pos + new Vector3(0f, 0.9f, 0f), Texts.IngredientName(e.eatenId) + " 털림!", Theme.Bad, 0.28f);
                         needsTimer = 0f;
                         break;
                     case SimEventType.WaveStarted:
@@ -337,7 +339,7 @@ namespace KitchenDefense.Game
                         autosaveTimer = 0f;
                         break;
                     case SimEventType.SeasonFailed:
-                        NightUI.Banner("가게가 무너졌다...", Theme.Bad);
+                        NightUI.Banner("주방이 엉망이 됐다...", Theme.Bad);
                         break;
                 }
             }
@@ -445,7 +447,16 @@ namespace KitchenDefense.Game
             NightUI.Show(night);
             switch (phase)
             {
-                case GamePhase.Intro: cards.ShowIntro(); break;
+                case GamePhase.Intro:
+                    // 시즌 첫 화면: 프롤로그(0일 밤 이야기) → 개업 전야 카드(규칙, 첫 예약 메모)
+                    if (Session.Run.storyNight < 0) PlayNightStory(0, "개업 준비", () =>
+                    {
+                        Session.Run.storyNight = 0;
+                        SaveNow();
+                        cards.ShowIntro();
+                    });
+                    else cards.ShowIntro();
+                    break;
                 case GamePhase.Night: cards.Hide(); break;
                 case GamePhase.NightResult: cards.ShowNightResult(); break;
                 case GamePhase.DayMenu: cards.ShowDayMenu(); break;
@@ -454,7 +465,17 @@ namespace KitchenDefense.Game
                 case GamePhase.DayClosing: cards.ShowClosing(); break;
                 case GamePhase.SeasonResult:
                     bool best = SaveSystem.SubmitScore(Session.Score);
-                    cards.ShowSeasonResult(best);
+                    if (endingShown) cards.ShowSeasonResult(best);
+                    else
+                    {
+                        // 엔딩 이야기(등급별 / 영업 정지) → 시즌 결과
+                        var beat = Session.Run.failed ? Story.Failure() : Story.Ending(Session.Rank);
+                        cards.ShowStory(beat, Session.Run.failed ? "배드 엔딩" : "엔딩", Session.Run.failed ? "위생 점수 0" : "닷새째 낮", "결과 보기", () =>
+                        {
+                            endingShown = true;
+                            cards.ShowSeasonResult(best);
+                        });
+                    }
                     break;
             }
         }
@@ -471,8 +492,21 @@ namespace KitchenDefense.Game
             RefreshNeeds();
         }
 
+        /// <summary>n일 밤 이야기를 보여 준 뒤 onDone. (이야기가 없으면 바로 onDone)</summary>
+        void PlayNightStory(int night, string doneLabel, UnityEngine.Events.UnityAction onDone)
+        {
+            Board.SetVisible(false);
+            NightUI.Show(false);
+            var beat = Story.BeforeNight(night);
+            string chapter = night == 0 ? "프롤로그" : night + "일 밤";
+            int left = Story.DaysUntilCritic(night);
+            string countdown = left <= 1 ? "내일 미식 평론가 방문!" : "미식 평론가 방문까지 " + left + "일";
+            cards.ShowStory(beat, chapter, countdown, doneLabel, onDone);
+        }
+
         public void NewSeason()
         {
+            endingShown = false;
             Session = GameSession.NewSeason(Random.Range(1, int.MaxValue));
             SaveNow();
             ShowPhase();
@@ -487,6 +521,7 @@ namespace KitchenDefense.Game
                 ShowTitle();
                 return;
             }
+            endingShown = false;
             Session = new GameSession(run);
             if (run.phase == GamePhase.Night) BeginNightView();
             ShowPhase();
@@ -513,6 +548,23 @@ namespace KitchenDefense.Game
             if (Session == null) return;
             if (accept) Session.AcceptOffer();
             else Session.DeclineOffer();
+            int night = Session.Run.day;
+            if (night > 0 && Session.Run.storyNight < night)
+            {
+                // 스테이지(밤) 사이 이야기 한 토막 → 밤 시작
+                SaveNow();
+                PlayNightStory(night, "밤 시작!", () =>
+                {
+                    Session.Run.storyNight = night;
+                    StartNightNow();
+                });
+                return;
+            }
+            StartNightNow();
+        }
+
+        void StartNightNow()
+        {
             Session.StartNight();
             BeginNightView();
             SaveNow();
@@ -587,6 +639,11 @@ namespace KitchenDefense.Game
         /// <summary>안드로이드 뒤로 버튼. 밤에는 일시정지, 낮·타이틀에서는 두 번 누르면 타이틀로/종료.</summary>
         void OnBack()
         {
+            if (cards.StoryOpen)
+            {
+                cards.SkipStory();
+                return;
+            }
             if (cards.HasOverlay)
             {
                 ResumeFromPause();

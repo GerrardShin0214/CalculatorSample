@@ -10,7 +10,8 @@ namespace KitchenDefense.Core
     /// </summary>
     public sealed class GameSession
     {
-        public const int SaveVersion = 1;
+        /// <summary>2: 주방 식구 vs 도둑 동물 세계관(재료·레시피 id가 바뀌어 1과 호환되지 않음).</summary>
+        public const int SaveVersion = 2;
 
         public RunState Run { get; private set; }
         public KitchenMap Map { get; private set; }

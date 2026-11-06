@@ -56,7 +56,7 @@ namespace KitchenDefense.Tests
             var knife = sim.Build(ToolType.Knife, 3, 3);
             Assert.AreEqual(150, sim.State.firepower);
             Assert.AreEqual(50, sim.RefundValue(knife), "준비 시간 회수는 전액");
-            TestUtil.SetSingleWave(sim, MonsterType.Crab);
+            TestUtil.SetSingleWave(sim, MonsterType.Raccoon);
             Assert.IsTrue(sim.StartWave());
             Assert.AreEqual(25, sim.RefundValue(knife), "웨이브 중 회수는 절반");
             Assert.AreEqual(BuildResult.NotNow, sim.CheckMove(knife, 2, 3), "이동은 준비 시간에만");
@@ -70,15 +70,15 @@ namespace KitchenDefense.Tests
             TestUtil.Build(sim, ToolType.Grill, 3, 3);
             TestUtil.Build(sim, ToolType.Grill, 3, 5);
             TestUtil.Build(sim, ToolType.Grill, 3, 7);
-            TestUtil.SetSingleWave(sim, MonsterType.Crab);
+            TestUtil.SetSingleWave(sim, MonsterType.Raccoon);
             sim.StartWave();
             TestUtil.RunWave(sim);
-            CollectionAssert.AreEqual(new[] { "grilled_crab" }, sim.State.haul);
+            CollectionAssert.AreEqual(new[] { "grilled_fish" }, sim.State.haul);
             Assert.AreEqual(0, sim.State.leaks);
         }
 
         [Test]
-        public void FreezerLastHit_GivesFrozenRaw_AndSlimeSplits()
+        public void FreezerLastHit_GivesFrozenRaw_AndMouseGangScatters()
         {
             var s = TestUtil.NightSession();
             var sim = s.Night;
@@ -87,29 +87,47 @@ namespace KitchenDefense.Tests
             TestUtil.Build(sim, ToolType.Freezer, 0, 1);
             TestUtil.Build(sim, ToolType.Freezer, 2, 1);
             TestUtil.Build(sim, ToolType.Freezer, 0, 2);
-            TestUtil.SetSingleWave(sim, MonsterType.Slime);
+            TestUtil.SetSingleWave(sim, MonsterType.MouseGang);
             sim.StartWave();
             TestUtil.RunWave(sim);
-            CollectionAssert.AreEqual(new[] { "frozen_jelly" }, sim.State.haul, "꼬마 슬라임은 재료가 없다");
-            Assert.AreEqual(3, sim.State.kills, "본체 1 + 분열체 2");
+            CollectionAssert.AreEqual(new[] { "frozen_cheese" }, sim.State.haul, "꼬마 생쥐는 빈손이다");
+            Assert.AreEqual(3, sim.State.kills, "생쥐 떼 1 + 흩어진 꼬마 생쥐 2");
         }
 
         [Test]
-        public void KnifeOnSlime_IsNotInTable_GivesScraps_AndSpawnsTwoSmallSlimes()
+        public void KnifeOnMouseGang_GivesCheeseSlice_AndTwoMiceScatter()
         {
             var s = TestUtil.NightSession();
             var sim = s.Night;
             TestUtil.Build(sim, ToolType.Knife, 2, 1);
-            TestUtil.SetSingleWave(sim, MonsterType.Slime);
+            TestUtil.SetSingleWave(sim, MonsterType.MouseGang);
             sim.StartWave();
             for (int i = 0; i < 3000 && sim.State.kills == 0; i++)
             {
                 sim.Step(TestUtil.Dt);
                 sim.Events.Clear();
             }
-            CollectionAssert.AreEqual(new[] { GameData.Scraps }, sim.State.haul);
+            CollectionAssert.AreEqual(new[] { "cheese_slice" }, sim.State.haul);
             Assert.AreEqual(2, sim.State.monsters.Count);
-            foreach (var m in sim.State.monsters) Assert.AreEqual(MonsterType.SlimeSmall, m.type);
+            foreach (var m in sim.State.monsters) Assert.AreEqual(MonsterType.Mouse, m.type);
+        }
+
+        [Test]
+        public void BoilOnCheese_IsNotInTable_GivesScraps()
+        {
+            var s = TestUtil.NightSession();
+            var sim = s.Night;
+            TestUtil.Build(sim, ToolType.Cauldron, 2, 2);
+            TestUtil.SetSingleWave(sim, MonsterType.MouseGang);
+            sim.StartWave();
+            var gang = TestUtil.StepUntilSpawn(sim);
+            gang.hp = gang.maxHp * 0.2f;
+            for (int i = 0; i < 3000 && sim.State.kills == 0; i++)
+            {
+                sim.Step(TestUtil.Dt);
+                sim.Events.Clear();
+            }
+            CollectionAssert.AreEqual(new[] { GameData.Scraps }, sim.State.haul, "삶은 치즈는 표에 없다(잡재료)");
         }
 
         [Test]
@@ -123,7 +141,7 @@ namespace KitchenDefense.Tests
             var boar = TestUtil.StepUntilSpawn(sim);
             boar.hp = boar.maxHp * 0.2f;
             TestUtil.RunWave(sim);
-            CollectionAssert.AreEqual(new[] { "boiled_meat" }, sim.State.haul);
+            CollectionAssert.AreEqual(new[] { "steamed_potato" }, sim.State.haul);
 
             var s2 = TestUtil.NightSession();
             var sim2 = s2.Night;
@@ -141,14 +159,14 @@ namespace KitchenDefense.Tests
         {
             var s = TestUtil.NightSession();
             var sim = s.Night;
-            s.Run.storage.Add(TestUtil.Item("grilled_jelly", 0));
-            s.Run.storage.Add(TestUtil.Item("boiled_meat", 0));
-            s.Run.storage.Add(TestUtil.Item("raw_meat", 0));
+            s.Run.storage.Add(TestUtil.Item("grilled_cheese", 0));
+            s.Run.storage.Add(TestUtil.Item("grilled_fish", 0));
+            s.Run.storage.Add(TestUtil.Item("potato_strips", 0));
             TestUtil.SetSingleWave(sim, MonsterType.Boar);
             sim.StartWave();
             TestUtil.RunWave(sim);
-            CollectionAssert.AreEqual(new[] { "grilled_jelly", "raw_meat" }, TestUtil.Ids(s.Run.storage));
-            CollectionAssert.AreEqual(new[] { "boiled_meat" }, sim.State.eaten);
+            CollectionAssert.AreEqual(new[] { "grilled_cheese", "potato_strips" }, TestUtil.Ids(s.Run.storage));
+            CollectionAssert.AreEqual(new[] { "grilled_fish" }, sim.State.eaten);
         }
 
         [Test]
@@ -181,16 +199,16 @@ namespace KitchenDefense.Tests
         }
 
         [Test]
-        public void Crab_ResistsKnife_AndIsWeakToHeat()
+        public void Raccoon_ResistsKnife_AndIsWeakToHeat()
         {
             var s = TestUtil.NightSession();
             var sim = s.Night;
             var knife = sim.Build(ToolType.Knife, 3, 3);
             var grill = sim.Build(ToolType.Grill, 2, 3);
-            var crab = GameData.Monster(MonsterType.Crab);
+            var raccoon = GameData.Monster(MonsterType.Raccoon);
             var boar = GameData.Monster(MonsterType.Boar);
-            Assert.AreEqual(Combat.KnifeDamage(s.Run, knife, boar) * 0.5f, Combat.KnifeDamage(s.Run, knife, crab), 0.0001f);
-            Assert.AreEqual(Combat.BurnDps(s.Run, grill, boar) * 1.5f, Combat.BurnDps(s.Run, grill, crab), 0.0001f);
+            Assert.AreEqual(Combat.KnifeDamage(s.Run, knife, boar) * 0.5f, Combat.KnifeDamage(s.Run, knife, raccoon), 0.0001f);
+            Assert.AreEqual(Combat.BurnDps(s.Run, grill, boar) * 1.5f, Combat.BurnDps(s.Run, grill, raccoon), 0.0001f);
         }
 
         [Test]
@@ -208,12 +226,12 @@ namespace KitchenDefense.Tests
         }
 
         [Test]
-        public void Mushroom_Spores_SlowNearbyTools()
+        public void FlySwarm_Buzz_SlowsNearbyTools()
         {
             var s = TestUtil.NightSession();
             var sim = s.Night;
             var knife = sim.Build(ToolType.Knife, 2, 1);
-            TestUtil.SetSingleWave(sim, MonsterType.Mushroom);
+            TestUtil.SetSingleWave(sim, MonsterType.FlySwarm);
             sim.StartWave();
             var shroom = TestUtil.StepUntilSpawn(sim);
             shroom.distance = 1.5f; // (−2, 3.5): 기구와 1칸 거리
@@ -254,7 +272,7 @@ namespace KitchenDefense.Tests
         {
             var s = TestUtil.NightSession();
             var sim = s.Night;
-            TestUtil.SetSingleWave(sim, MonsterType.Slime);
+            TestUtil.SetSingleWave(sim, MonsterType.MouseGang);
             sim.StartWave();
             var m = TestUtil.StepUntilSpawn(sim);
             var p = new KillPredictor().Predict(sim, m);
@@ -277,14 +295,14 @@ namespace KitchenDefense.Tests
             Assert.IsFalse(p.leak);
             Assert.AreEqual(pot.id, p.towerId);
             Assert.AreEqual(CookMethod.Boil, p.method);
-            Assert.AreEqual("boiled_meat", p.ingredientId);
+            Assert.AreEqual("steamed_potato", p.ingredientId);
         }
 
         static IEnumerable<MonsterType> PredictorCases()
         {
             yield return MonsterType.Boar;
-            yield return MonsterType.Crab;
-            yield return MonsterType.Slime;
+            yield return MonsterType.Raccoon;
+            yield return MonsterType.MouseGang;
         }
 
         /// <summary>몬스터가 한 마리뿐이면 예상은 실제 막타와 정확히 같아야 한다.</summary>

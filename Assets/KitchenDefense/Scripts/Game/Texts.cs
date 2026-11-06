@@ -115,9 +115,9 @@ namespace KitchenDefense.Game
         {
             switch (r)
             {
-                case BuildResult.Occupied: return "이미 기구가 있는 칸이에요";
-                case BuildResult.NeedsPath: return "가마솥은 경로 위에만 놓을 수 있어요";
-                case BuildResult.NeedsFloor: return "경로 위에는 가마솥만 놓을 수 있어요";
+                case BuildResult.Occupied: return "이미 식구가 있는 칸이에요";
+                case BuildResult.NeedsPath: return "솥할매는 길 위에만 설 수 있어요";
+                case BuildResult.NeedsFloor: return "길 위에는 솥할매만 설 수 있어요";
                 case BuildResult.NoFirepower: return "화력이 부족해요";
                 case BuildResult.Reserved: return "뒷문과 창고에는 놓을 수 없어요";
                 case BuildResult.NotNow: return "이동은 웨이브 사이 준비 시간에만 돼요";
@@ -136,10 +136,10 @@ namespace KitchenDefense.Game
             switch (rank)
             {
                 case "S": return "“이 집 막타는 예술이다.” 평론가가 별 다섯 개를 줬다!";
-                case "A": return "“몬스터 요리의 새 기준.” 다음 시즌이 기대된다.";
+                case "A": return "“재료 손질이 예술이다.” 다음 시즌이 기대된다.";
                 case "B": return "“맛은 있는데, 막타가 조금 아쉽다.”";
                 case "C": return "“가게는 지켰지만 요리는 글쎄...”";
-                default: return "가게가 무너졌다. 하지만 경험은 남는다.";
+                default: return "주방이 엉망이 됐다. 하지만 경험은 남는다.";
             }
         }
     }

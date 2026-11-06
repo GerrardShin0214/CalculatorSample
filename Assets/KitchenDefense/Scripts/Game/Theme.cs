@@ -43,6 +43,11 @@ namespace KitchenDefense.Game
         public static readonly Color Muted = Hex(0xB9AEA3);
         public static readonly Color Dim = Hex(0x000000, 0.55f);
 
+        // 이야기 장면(자정의 주방)
+        public static readonly Color StoryNight = Hex(0x14182B);
+        public static readonly Color StoryPanel = Hex(0x252C4A);
+        public static readonly Color StoryText = Hex(0xF5F0E6);
+
         // 밤 HUD
         public static readonly Color HudBg = Hex(0x15100E, 0.94f);
         public static readonly Color HudPanel = Hex(0x2A211D);
